@@ -1,0 +1,12 @@
+{
+  "name": "@stat-force/database",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "echo 'No build step yet'",
+    "typecheck": "echo 'No types yet'",
+    "lint": "echo 'No lint yet'",
+    "test": "echo 'No tests yet'"
+  }
+}
