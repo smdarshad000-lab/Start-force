@@ -1,27 +1,21 @@
-import { Link } from 'react-router-dom';
+import { PageContainer } from '../components/layout/PageContainer';
 
 export function Messages() {
   return (
-    <main className="page">
-      <nav className="nav">
-        <Link to="/" className="brand">
-          STAT<span>-FORCE</span>
-        </Link>
+    <PageContainer>
+      <section className="py-12 text-center">
+        <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-emerald-600">
+          Messages
+        </p>
 
-        <div className="nav-actions">
-          <Link to="/discover">Discover</Link>
-          <Link to="/messages">Messages</Link>
-          <Link to="/profile">Profile</Link>
-        </div>
-      </nav>
+        <h1 className="text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+          Communication
+        </h1>
 
-      <section className="page-header">
-        <p className="eyebrow">MESSAGES</p>
-        <h2>Communication</h2>
-        <p>
+        <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">
           Connect directly with founders, researchers, contributors and experts.
         </p>
       </section>
-    </main>
+    </PageContainer>
   );
 }

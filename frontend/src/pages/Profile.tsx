@@ -1,27 +1,21 @@
-import { Link } from 'react-router-dom';
+import { PageContainer } from '../components/layout/PageContainer';
 
 export function Profile() {
   return (
-    <main className="page">
-      <nav className="nav">
-        <Link to="/" className="brand">
-          STAT<span>-FORCE</span>
-        </Link>
+    <PageContainer>
+      <section className="py-12 text-center">
+        <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-emerald-600">
+          Profile
+        </p>
 
-        <div className="nav-actions">
-          <Link to="/discover">Discover</Link>
-          <Link to="/messages">Messages</Link>
-          <Link to="/profile">Profile</Link>
-        </div>
-      </nav>
+        <h1 className="text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+          Your innovation profile
+        </h1>
 
-      <section className="page-header">
-        <p className="eyebrow">PROFILE</p>
-        <h2>Your innovation profile</h2>
-        <p>
+        <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">
           Skills, research, experience, interests and projects.
         </p>
       </section>
-    </main>
+    </PageContainer>
   );
 }

@@ -44,21 +44,7 @@ const ideas = [
 
 export function Discover() {
   return (
-    <main className="page">
-      <nav className="nav">
-        <Link to="/" className="brand">
-          STAT<span>-FORCE</span>
-        </Link>
-
-        <div className="nav-actions">
-          <Link to="/discover">Discover</Link>
-          <Link to="/research">Research</Link>
-          <Link to="/build">Build</Link>
-          <Link to="/messages">Messages</Link>
-          <Link to="/profile">Profile</Link>
-        </div>
-      </nav>
-
+    <div className="page">
       <section className="page-header">
         <p className="eyebrow">DISCOVER</p>
 
@@ -133,6 +119,6 @@ export function Discover() {
           </article>
         ))}
       </section>
-    </main>
+    </div>
   );
 }

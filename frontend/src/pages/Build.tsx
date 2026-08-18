@@ -1,27 +1,21 @@
-import { Link } from 'react-router-dom';
+import { PageContainer } from '../components/layout/PageContainer';
 
 export function Build() {
   return (
-    <main className="page">
-      <nav className="nav">
-        <Link to="/" className="brand">
-          STAT<span>-FORCE</span>
-        </Link>
+    <PageContainer>
+      <section className="py-12 text-center">
+        <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-emerald-600">
+          Build
+        </p>
 
-        <div className="nav-actions">
-          <Link to="/discover">Discover</Link>
-          <Link to="/research">Research</Link>
-          <Link to="/build">Build</Link>
-        </div>
-      </nav>
+        <h1 className="text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+          Turn an idea into a project
+        </h1>
 
-      <section className="page-header">
-        <p className="eyebrow">BUILD</p>
-        <h2>Turn an idea into a project</h2>
-        <p>
+        <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">
           Submit an idea, define what you need and find the right people.
         </p>
       </section>
-    </main>
+    </PageContainer>
   );
 }

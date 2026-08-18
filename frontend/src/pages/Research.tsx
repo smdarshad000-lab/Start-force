@@ -1,27 +1,21 @@
-import { Link } from 'react-router-dom';
+import { PageContainer } from '../components/layout/PageContainer';
 
 export function Research() {
   return (
-    <main className="page">
-      <nav className="nav">
-        <Link to="/" className="brand">
-          STAT<span>-FORCE</span>
-        </Link>
+    <PageContainer>
+      <section className="py-12 text-center">
+        <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-emerald-600">
+          Research
+        </p>
 
-        <div className="nav-actions">
-          <Link to="/discover">Discover</Link>
-          <Link to="/research">Research</Link>
-          <Link to="/build">Build</Link>
-        </div>
-      </nav>
+        <h1 className="text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+          Research intelligence
+        </h1>
 
-      <section className="page-header">
-        <p className="eyebrow">RESEARCH</p>
-        <h2>Research intelligence</h2>
-        <p>
+        <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">
           Discover research connected to ideas, technologies and opportunities.
         </p>
       </section>
-    </main>
+    </PageContainer>
   );
 }
