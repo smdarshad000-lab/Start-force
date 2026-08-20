@@ -23,6 +23,8 @@ type IdeaStatProps = {
   value: number;
 };
 
+type SortOption = 'newest' | 'innovation' | 'market' | 'validation' | 'team';
+
 const ideas: Idea[] = [
   {
     id: '1',
@@ -71,7 +73,7 @@ const categories = ['All', 'AI', 'Agritech', 'Climate Tech'];
 
 const stages = ['All', 'Research', 'Prototype', 'MVP'];
 
-const sortOptions = [
+const sortOptions: { value: SortOption; label: string }[] = [
   { value: 'newest', label: 'Newest' },
   { value: 'innovation', label: 'Innovation score' },
   { value: 'market', label: 'Market potential' },
@@ -85,6 +87,7 @@ export function Discover() {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedStage, setSelectedStage] = useState('All');
+  const [sortBy, setSortBy] = useState<SortOption>('newest');
 
   useEffect(() => {
     const storedSearches = localStorage.getItem(RECENT_SEARCHES_KEY);
@@ -142,7 +145,6 @@ export function Discover() {
   function handleRecentSearch(searchTerm: string) {
     setSearch(searchTerm);
     setActiveSearch(searchTerm);
-
     saveRecentSearch(searchTerm);
   }
 
@@ -156,6 +158,7 @@ export function Discover() {
     setActiveSearch('');
     setSelectedCategory('All');
     setSelectedStage('All');
+    setSortBy('newest');
   }
 
   const filteredIdeas = ideas.filter((idea) => {
@@ -176,14 +179,33 @@ export function Discover() {
       idea.stage === selectedStage;
 
     return matchesSearch && matchesCategory && matchesStage;
+  });
 
-    
+  const sortedIdeas = [...filteredIdeas].sort((a, b) => {
+    switch (sortBy) {
+      case 'innovation':
+        return b.innovation - a.innovation;
+
+      case 'market':
+        return b.marketPotential - a.marketPotential;
+
+      case 'validation':
+        return b.validation - a.validation;
+
+      case 'team':
+        return b.teamStrength - a.teamStrength;
+
+      case 'newest':
+      default:
+        return Number(b.id) - Number(a.id);
+    }
   });
 
   const hasActiveFilters =
     Boolean(activeSearch) ||
     selectedCategory !== 'All' ||
-    selectedStage !== 'All';
+    selectedStage !== 'All' ||
+    sortBy !== 'newest';
 
   return (
     <PageContainer>
@@ -328,6 +350,27 @@ export function Discover() {
               })}
             </div>
           </div>
+
+          {/* Sort */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-medium text-slate-500">
+              Sort by
+            </p>
+
+            <select
+              value={sortBy}
+              onChange={(event) =>
+                setSortBy(event.target.value as SortOption)
+              }
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 sm:w-auto"
+            >
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Results header */}
@@ -344,8 +387,8 @@ export function Discover() {
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              {filteredIdeas.length}{' '}
-              {filteredIdeas.length === 1 ? 'idea' : 'ideas'} found
+              {sortedIdeas.length}{' '}
+              {sortedIdeas.length === 1 ? 'idea' : 'ideas'} found
             </p>
           </div>
 
@@ -361,9 +404,9 @@ export function Discover() {
         </div>
 
         {/* Results */}
-        {filteredIdeas.length > 0 ? (
+        {sortedIdeas.length > 0 ? (
           <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {filteredIdeas.map((idea) => (
+            {sortedIdeas.map((idea) => (
               <article
                 key={idea.id}
                 className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
