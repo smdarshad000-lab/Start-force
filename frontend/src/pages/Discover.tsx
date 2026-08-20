@@ -1,22 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { ideas } from '../data/ideas';
 
 import { PageContainer } from '../components/layout/PageContainer';
-
-type Idea = {
-  id: string;
-  title: string;
-  category: string;
-  stage: string;
-  innovation: number;
-  marketPotential: number;
-  validation: number;
-  teamStrength: number;
-  researchers: number;
-  contributors: number;
-  funding: string;
-};
 
 type IdeaStatProps = {
   label: string;
@@ -24,48 +11,6 @@ type IdeaStatProps = {
 };
 
 type SortOption = 'newest' | 'innovation' | 'market' | 'validation' | 'team';
-
-const ideas: Idea[] = [
-  {
-    id: '1',
-    title: 'AI Crop Disease Detection',
-    category: 'Agritech',
-    stage: 'Prototype',
-    innovation: 82,
-    marketPotential: 76,
-    validation: 67,
-    teamStrength: 54,
-    researchers: 12,
-    contributors: 4,
-    funding: '₹15L',
-  },
-  {
-    id: '2',
-    title: 'Low-Cost Water Quality Monitoring',
-    category: 'Climate Tech',
-    stage: 'Research',
-    innovation: 88,
-    marketPotential: 81,
-    validation: 59,
-    teamStrength: 72,
-    researchers: 8,
-    contributors: 6,
-    funding: '₹10L',
-  },
-  {
-    id: '3',
-    title: 'AI Legal Assistant for MSMEs',
-    category: 'AI',
-    stage: 'MVP',
-    innovation: 79,
-    marketPotential: 91,
-    validation: 74,
-    teamStrength: 68,
-    researchers: 16,
-    contributors: 9,
-    funding: '₹40L',
-  },
-];
 
 const RECENT_SEARCHES_KEY = 'stat-force-recent-searches';
 
