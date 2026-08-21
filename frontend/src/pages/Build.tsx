@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { PageContainer } from '../components/layout/PageContainer';
+import { ResearchEvidence } from '../components/build/ResearchEvidence';
 
 const stages = [
   'Idea',
@@ -29,28 +30,57 @@ const ideaStages = [
   'Startup',
 ];
 
+const technologyReadinessLevels = [
+  'Concept only',
+  'Early research',
+  'Proof of concept',
+  'Working prototype',
+  'Tested prototype',
+  'Production ready',
+];
+
 export function Build() {
   const [currentStage, setCurrentStage] = useState(1);
 
-  // IDEA STAGE
+  // ============================================================
+  // STAGE 1 — IDEA
+  // ============================================================
+
+  // Basic information
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [ideaStage, setIdeaStage] = useState('');
 
+  // Problem
   const [problemStatement, setProblemStatement] = useState('');
   const [targetUsers, setTargetUsers] = useState('');
   const [currentSolution, setCurrentSolution] = useState('');
   const [problemEvidence, setProblemEvidence] = useState('');
 
+  // Solution
   const [solutionDescription, setSolutionDescription] = useState('');
   const [howItWorks, setHowItWorks] = useState('');
   const [uniqueValue, setUniqueValue] = useState('');
 
-  // EVIDENCE STAGE
-  // We'll add these sections later.
-  
+  // ============================================================
+  // STAGE 2 — EVIDENCE
+  // ============================================================
+
+  // Technology
+  const [technologyApproach, setTechnologyApproach] = useState('');
+  const [technologyDomain, setTechnologyDomain] = useState('');
+  const [technologyReadiness, setTechnologyReadiness] = useState('');
+  const [requiredTechnology, setRequiredTechnology] = useState('');
+  const [existingImplementation, setExistingImplementation] = useState('');
+
   const totalStages = stages.length;
+  
+  <ResearchEvidence />
+
+  // ============================================================
+  // VALIDATION
+  // ============================================================
 
   const isIdeaComplete =
     title.trim().length >= 5 &&
@@ -65,9 +95,33 @@ export function Build() {
     howItWorks.trim().length >= 30 &&
     uniqueValue.trim().length >= 20;
 
+  const isTechnologyComplete =
+    technologyApproach.trim().length >= 30 &&
+    technologyDomain.trim().length >= 5 &&
+    technologyReadiness !== '' &&
+    requiredTechnology.trim().length >= 20 &&
+    existingImplementation.trim().length >= 20;
+
+  // ============================================================
+  // NAVIGATION
+  // ============================================================
+
   function goToNextStage() {
-    if (currentStage === 1 && isIdeaComplete) {
+    if (currentStage === 1) {
+      if (!isIdeaComplete) {
+        return;
+      }
+
       setCurrentStage(2);
+      return;
+    }
+
+    if (currentStage === 2) {
+      if (!isTechnologyComplete) {
+        return;
+      }
+
+      setCurrentStage(3);
       return;
     }
 
@@ -85,7 +139,10 @@ export function Build() {
   return (
     <PageContainer>
       <section className="py-10">
-        {/* Header */}
+        {/* ========================================================
+            HEADER
+        ======================================================== */}
+
         <div className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-600">
             Build
@@ -101,7 +158,10 @@ export function Build() {
           </p>
         </div>
 
-        {/* Stage progress */}
+        {/* ========================================================
+            STAGE PROGRESS
+        ======================================================== */}
+
         <div className="mt-12 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
@@ -119,6 +179,7 @@ export function Build() {
             </p>
           </div>
 
+          {/* Progress bar */}
           <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100">
             <div
               className="h-full rounded-full bg-emerald-500 transition-all duration-500"
@@ -128,6 +189,7 @@ export function Build() {
             />
           </div>
 
+          {/* Stage indicators */}
           <div className="mt-6 grid grid-cols-5 gap-2">
             {stages.map((stage, index) => {
               const stageNumber = index + 1;
@@ -167,10 +229,16 @@ export function Build() {
           </div>
         </div>
 
-        {/* STAGE 1 */}
+        {/* ========================================================
+            STAGE 1 — IDEA
+        ======================================================== */}
+
         {currentStage === 1 && (
           <div className="mt-8 space-y-8">
-            {/* Basic Information */}
+            {/* ----------------------------------------------------
+                BASIC INFORMATION
+            ---------------------------------------------------- */}
+
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
               <div className="max-w-3xl">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
@@ -187,6 +255,7 @@ export function Build() {
               </div>
 
               <div className="mt-8 space-y-6">
+                {/* Title */}
                 <div>
                   <label
                     htmlFor="idea-title"
@@ -214,6 +283,7 @@ export function Build() {
                   </div>
                 </div>
 
+                {/* Description */}
                 <div>
                   <label
                     htmlFor="idea-description"
@@ -221,6 +291,10 @@ export function Build() {
                   >
                     Short description
                   </label>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Explain what your idea does and who it helps.
+                  </p>
 
                   <textarea
                     id="idea-description"
@@ -237,6 +311,7 @@ export function Build() {
                   </div>
                 </div>
 
+                {/* Category + Stage */}
                 <div className="grid gap-6 md:grid-cols-2">
                   <div>
                     <label
@@ -289,7 +364,10 @@ export function Build() {
               </div>
             </section>
 
-            {/* Problem */}
+            {/* ----------------------------------------------------
+                PROBLEM
+            ---------------------------------------------------- */}
+
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
               <div className="max-w-3xl">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
@@ -302,6 +380,7 @@ export function Build() {
               </div>
 
               <div className="mt-8 space-y-6">
+                {/* Problem statement */}
                 <div>
                   <label
                     htmlFor="problem-statement"
@@ -327,6 +406,7 @@ export function Build() {
                   </div>
                 </div>
 
+                {/* Target users */}
                 <div>
                   <label
                     htmlFor="target-users"
@@ -346,6 +426,7 @@ export function Build() {
                   />
                 </div>
 
+                {/* Current solution */}
                 <div>
                   <label
                     htmlFor="current-solution"
@@ -367,6 +448,7 @@ export function Build() {
                   />
                 </div>
 
+                {/* Evidence */}
                 <div>
                   <label
                     htmlFor="problem-evidence"
@@ -390,7 +472,10 @@ export function Build() {
               </div>
             </section>
 
-            {/* Solution */}
+            {/* ----------------------------------------------------
+                SOLUTION
+            ---------------------------------------------------- */}
+
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
               <div className="max-w-3xl">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
@@ -403,6 +488,7 @@ export function Build() {
               </div>
 
               <div className="mt-8 space-y-6">
+                {/* Proposed solution */}
                 <div>
                   <label
                     htmlFor="solution-description"
@@ -424,6 +510,7 @@ export function Build() {
                   />
                 </div>
 
+                {/* How it works */}
                 <div>
                   <label
                     htmlFor="how-it-works"
@@ -443,6 +530,7 @@ export function Build() {
                   />
                 </div>
 
+                {/* Unique value */}
                 <div>
                   <label
                     htmlFor="unique-value"
@@ -464,7 +552,7 @@ export function Build() {
               </div>
             </section>
 
-            {/* Stage navigation */}
+            {/* Stage 1 navigation */}
             <div className="flex justify-end border-t border-slate-200 pt-6">
               <button
                 type="button"
@@ -483,22 +571,210 @@ export function Build() {
           </div>
         )}
 
-        {/* STAGE 2 PLACEHOLDER */}
+        {/* ========================================================
+            STAGE 2 — EVIDENCE
+        ======================================================== */}
+
         {currentStage === 2 && (
-          <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-              Stage 2
-            </p>
+          <div className="mt-8 space-y-8">
+            {/* Stage heading */}
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+              <div className="max-w-3xl">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+                  Stage 2 · Evidence
+                </p>
 
-            <h2 className="mt-3 text-3xl font-bold text-slate-950">
-              Evidence
-            </h2>
+                <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">
+                  Show how your idea works
+                </h2>
 
-            <p className="mt-4 max-w-2xl leading-7 text-slate-600">
-              Technology, research, and validation will be added here next.
-            </p>
+                <p className="mt-4 leading-7 text-slate-600">
+                  Help people understand the technical or scientific
+                  foundation of your idea, what you have already built, and
+                  what you still need.
+                </p>
+              </div>
+            </section>
 
-            <div className="mt-8 flex justify-between">
+            {/* Technology */}
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+              <div className="max-w-3xl">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+                  Technology
+                </p>
+
+                <h2 className="mt-3 text-2xl font-bold text-slate-950">
+                  Technical or scientific approach
+                </h2>
+
+                <p className="mt-3 leading-7 text-slate-600">
+                  This section should work for software, engineering,
+                  biotechnology, climate research, materials science, and
+                  other technical projects.
+                </p>
+              </div>
+
+              <div className="mt-8 space-y-6">
+                {/* Technology approach */}
+                <div>
+                  <label
+                    htmlFor="technology-approach"
+                    className="block text-sm font-semibold text-slate-950"
+                  >
+                    What technology or approach are you using?
+                  </label>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Explain the core technical, scientific, or engineering
+                    approach.
+                  </p>
+
+                  <textarea
+                    id="technology-approach"
+                    value={technologyApproach}
+                    onChange={(event) =>
+                      setTechnologyApproach(event.target.value)
+                    }
+                    placeholder="Example: A computer-vision model trained on crop disease images..."
+                    maxLength={1200}
+                    rows={7}
+                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                  />
+
+                  <div className="mt-2 text-right text-xs text-slate-400">
+                    {technologyApproach.length}/1200
+                  </div>
+                </div>
+
+                {/* Technology domain */}
+                <div>
+                  <label
+                    htmlFor="technology-domain"
+                    className="block text-sm font-semibold text-slate-950"
+                  >
+                    Technology or scientific domain
+                  </label>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Identify the main technical or scientific field.
+                  </p>
+
+                  <input
+                    id="technology-domain"
+                    type="text"
+                    value={technologyDomain}
+                    onChange={(event) =>
+                      setTechnologyDomain(event.target.value)
+                    }
+                    placeholder="e.g. Computer Vision, Biotechnology, Materials Science"
+                    maxLength={150}
+                    className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                  />
+
+                  <div className="mt-2 text-right text-xs text-slate-400">
+                    {technologyDomain.length}/150
+                  </div>
+                </div>
+
+                {/* Technology readiness */}
+                <div>
+                  <label
+                    htmlFor="technology-readiness"
+                    className="block text-sm font-semibold text-slate-950"
+                  >
+                    Current technology readiness
+                  </label>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Choose the option that best represents the current state.
+                  </p>
+
+                  <select
+                    id="technology-readiness"
+                    value={technologyReadiness}
+                    onChange={(event) =>
+                      setTechnologyReadiness(event.target.value)
+                    }
+                    className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                  >
+                    <option value="">
+                      Select current technology readiness
+                    </option>
+
+                    {technologyReadinessLevels.map((level) => (
+                      <option key={level} value={level}>
+                        {level}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Required technology */}
+                <div>
+                  <label
+                    htmlFor="required-technology"
+                    className="block text-sm font-semibold text-slate-950"
+                  >
+                    What technology or resources are still required?
+                  </label>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Tell potential collaborators what technical capabilities,
+                    equipment, infrastructure, or expertise you still need.
+                  </p>
+
+                  <textarea
+                    id="required-technology"
+                    value={requiredTechnology}
+                    onChange={(event) =>
+                      setRequiredTechnology(event.target.value)
+                    }
+                    placeholder="Example: GPU compute, ML engineer, agricultural dataset, field testing equipment..."
+                    maxLength={1000}
+                    rows={6}
+                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                  />
+
+                  <div className="mt-2 text-right text-xs text-slate-400">
+                    {requiredTechnology.length}/1000
+                  </div>
+                </div>
+
+                {/* Existing implementation */}
+                <div>
+                  <label
+                    htmlFor="existing-implementation"
+                    className="block text-sm font-semibold text-slate-950"
+                  >
+                    What have you already built or tested?
+                  </label>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Describe any prototype, proof of concept, experiment,
+                    technical test, or implementation already completed.
+                  </p>
+
+                  <textarea
+                    id="existing-implementation"
+                    value={existingImplementation}
+                    onChange={(event) =>
+                      setExistingImplementation(event.target.value)
+                    }
+                    placeholder="Example: We built an initial prototype and tested it on 500 images..."
+                    maxLength={1000}
+                    rows={6}
+                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                  />
+
+                  <div className="mt-2 text-right text-xs text-slate-400">
+                    {existingImplementation.length}/1000
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Stage 2 navigation */}
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-between">
               <button
                 type="button"
                 onClick={goToPreviousStage}
@@ -509,12 +785,105 @@ export function Build() {
 
               <button
                 type="button"
-                className="cursor-not-allowed rounded-xl bg-slate-100 px-6 py-3.5 text-sm font-semibold text-slate-400"
-                disabled
+                onClick={goToNextStage}
+                disabled={!isTechnologyComplete}
+                className={[
+                  'rounded-xl px-6 py-3.5 text-sm font-semibold transition',
+                  isTechnologyComplete
+                    ? 'bg-slate-950 text-white hover:bg-slate-800'
+                    : 'cursor-not-allowed bg-slate-100 text-slate-400',
+                ].join(' ')}
               >
-                Evidence coming next
+                Continue to Collaboration →
               </button>
             </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            STAGE 3 — COLLABORATION
+        ======================================================== */}
+
+        {currentStage === 3 && (
+          <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+              Stage 3
+            </p>
+
+            <h2 className="mt-3 text-3xl font-bold text-slate-950">
+              Collaboration
+            </h2>
+
+            <p className="mt-4 max-w-2xl leading-7 text-slate-600">
+              Team requirements, skills, roles, and collaboration needs will
+              be built here next.
+            </p>
+
+            <button
+              type="button"
+              onClick={goToPreviousStage}
+              className="mt-8 rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
+            >
+              ← Back to Evidence
+            </button>
+          </section>
+        )}
+
+        {/* ========================================================
+            STAGE 4 — FUNDING
+        ======================================================== */}
+
+        {currentStage === 4 && (
+          <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+              Stage 4
+            </p>
+
+            <h2 className="mt-3 text-3xl font-bold text-slate-950">
+              Funding & Resources
+            </h2>
+
+            <p className="mt-4 max-w-2xl leading-7 text-slate-600">
+              Funding requirements and other resources will be built here
+              next.
+            </p>
+
+            <button
+              type="button"
+              onClick={goToPreviousStage}
+              className="mt-8 rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
+            >
+              ← Back to Collaboration
+            </button>
+          </section>
+        )}
+
+        {/* ========================================================
+            STAGE 5 — REVIEW
+        ======================================================== */}
+
+        {currentStage === 5 && (
+          <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+              Stage 5
+            </p>
+
+            <h2 className="mt-3 text-3xl font-bold text-slate-950">
+              Review & Publish
+            </h2>
+
+            <p className="mt-4 max-w-2xl leading-7 text-slate-600">
+              Privacy settings, preview, and publishing will be built here
+              next.
+            </p>
+
+            <button
+              type="button"
+              onClick={goToPreviousStage}
+              className="mt-8 rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
+            >
+              ← Back to Funding
+            </button>
           </section>
         )}
       </section>
