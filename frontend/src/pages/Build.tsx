@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { PageContainer } from '../components/layout/PageContainer';
+import { CollaborationNeeds } from '../components/build/CollaborationNeeds';
 import { ResearchEvidence } from '../components/build/ResearchEvidence';
 
 const stages = [
@@ -914,82 +915,38 @@ export function Build() {
         )}
 
         {/* Stage 3: Collaboration */}
-        {currentStage === 3 && (
-          <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-              Collaboration
-            </p>
+{currentStage === 3 && (
+  <div className="mt-8 space-y-8">
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <div className="max-w-3xl">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+          Collaboration
+        </p>
 
-            <h2 className="mt-3 text-3xl font-bold text-slate-950">
-              Find the people you need
-            </h2>
+        <h2 className="mt-3 text-3xl font-bold text-slate-950">
+          Find the people and expertise you need
+        </h2>
 
-            <p className="mt-4 max-w-2xl leading-7 text-slate-600">
-              Team requirements, roles, skills, and collaboration needs will
-              be built here next.
-            </p>
+        <p className="mt-4 leading-7 text-slate-600">
+          Tell the community which roles, skills, and collaborators would
+          help you move this idea forward.
+        </p>
+      </div>
+    </section>
 
-            <button
-              type="button"
-              onClick={goToPreviousStage}
-              className="mt-8 rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
-            >
-              ← Back to Evidence
-            </button>
-          </section>
-        )}
+    <CollaborationNeeds />
 
-        {/* Stage 4: Funding */}
-        {currentStage === 4 && (
-          <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-              Funding
-            </p>
-
-            <h2 className="mt-3 text-3xl font-bold text-slate-950">
-              Funding & resources
-            </h2>
-
-            <p className="mt-4 max-w-2xl leading-7 text-slate-600">
-              Funding requirements and other resource needs will be built here
-              next.
-            </p>
-
-            <button
-              type="button"
-              onClick={goToPreviousStage}
-              className="mt-8 rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
-            >
-              ← Back to Collaboration
-            </button>
-          </section>
-        )}
-
-        {/* Stage 5: Review */}
-        {currentStage === 5 && (
-          <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-              Review
-            </p>
-
-            <h2 className="mt-3 text-3xl font-bold text-slate-950">
-              Review & publish
-            </h2>
-
-            <p className="mt-4 max-w-2xl leading-7 text-slate-600">
-              Privacy settings, preview, and publishing will be built here
-              next.
-            </p>
-
-            <button
-              type="button"
-              onClick={goToPreviousStage}
-              className="mt-8 rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
-            >
-              ← Back to Funding
-            </button>
-          </section>
-        )}
+    <div className="flex justify-start border-t border-slate-200 pt-6">
+      <button
+        type="button"
+        onClick={goToPreviousStage}
+        className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
+      >
+        ← Back to Evidence
+      </button>
+    </div>
+  </div>
+)}
       </section>
     </PageContainer>
   );
