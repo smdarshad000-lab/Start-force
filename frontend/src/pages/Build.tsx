@@ -1,8 +1,9 @@
 import { useState } from 'react';
 
-import { PageContainer } from '../components/layout/PageContainer';
 import { CollaborationNeeds } from '../components/build/CollaborationNeeds';
+import { FundingNeeds } from '../components/build/FundingNeeds';
 import { ResearchEvidence } from '../components/build/ResearchEvidence';
+import { PageContainer } from '../components/layout/PageContainer';
 
 const stages = [
   'Idea',
@@ -92,7 +93,7 @@ export function Build() {
 
   const totalStages = stages.length;
 
-  // Stage validation
+  // Validation
 
   const isIdeaComplete =
     title.trim().length >= 5 &&
@@ -563,7 +564,6 @@ export function Build() {
         {/* Stage 2: Evidence */}
         {currentStage === 2 && (
           <div className="mt-8 space-y-8">
-            {/* Stage intro */}
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
                 Evidence
@@ -751,7 +751,6 @@ export function Build() {
               </div>
 
               <div className="mt-8 space-y-6">
-                {/* Method */}
                 <div>
                   <label
                     htmlFor="validation-method"
@@ -781,7 +780,6 @@ export function Build() {
                 {validationMethod !== '' &&
                   validationMethod !== 'Not validated yet' && (
                     <>
-                      {/* Audience */}
                       <div>
                         <label
                           htmlFor="validation-audience"
@@ -802,7 +800,6 @@ export function Build() {
                         />
                       </div>
 
-                      {/* Sample size */}
                       <div>
                         <label
                           htmlFor="validation-sample-size"
@@ -824,7 +821,6 @@ export function Build() {
                         />
                       </div>
 
-                      {/* Findings */}
                       <div>
                         <label
                           htmlFor="validation-findings"
@@ -850,7 +846,6 @@ export function Build() {
                         </div>
                       </div>
 
-                      {/* Evidence */}
                       <div>
                         <label
                           htmlFor="validation-evidence"
@@ -887,7 +882,6 @@ export function Build() {
               </div>
             </section>
 
-            {/* Stage 2 navigation */}
             <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-between">
               <button
                 type="button"
@@ -915,38 +909,99 @@ export function Build() {
         )}
 
         {/* Stage 3: Collaboration */}
-{currentStage === 3 && (
-  <div className="mt-8 space-y-8">
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-      <div className="max-w-3xl">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-          Collaboration
-        </p>
+        {currentStage === 3 && (
+          <div className="mt-8 space-y-8">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+                Collaboration
+              </p>
 
-        <h2 className="mt-3 text-3xl font-bold text-slate-950">
-          Find the people and expertise you need
-        </h2>
+              <h2 className="mt-3 text-3xl font-bold text-slate-950">
+                Find the people and expertise you need
+              </h2>
 
-        <p className="mt-4 leading-7 text-slate-600">
-          Tell the community which roles, skills, and collaborators would
-          help you move this idea forward.
-        </p>
-      </div>
-    </section>
+              <p className="mt-4 leading-7 text-slate-600">
+                Tell the community which roles, skills, and collaborators would
+                help you move this idea forward.
+              </p>
+            </section>
 
-    <CollaborationNeeds />
+            <CollaborationNeeds />
 
-    <div className="flex justify-start border-t border-slate-200 pt-6">
-      <button
-        type="button"
-        onClick={goToPreviousStage}
-        className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
-      >
-        ← Back to Evidence
-      </button>
-    </div>
-  </div>
-)}
+            <div className="border-t border-slate-200 pt-6">
+              <button
+                type="button"
+                onClick={goToPreviousStage}
+                className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
+              >
+                ← Back to Evidence
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Stage 4: Funding */}
+        {currentStage === 4 && (
+          <div className="mt-8 space-y-8">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+                Funding
+              </p>
+
+              <h2 className="mt-3 text-3xl font-bold text-slate-950">
+                Get the resources your idea needs
+              </h2>
+
+              <p className="mt-4 max-w-3xl leading-7 text-slate-600">
+                Funding is only one part of building something new. Tell people
+                what financial support and other resources could help your idea
+                progress.
+              </p>
+            </section>
+
+            <FundingNeeds />
+
+            <div className="border-t border-slate-200 pt-6">
+              <button
+                type="button"
+                onClick={goToPreviousStage}
+                className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
+              >
+                ← Back to Collaboration
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Stage 5: Review */}
+        {currentStage === 5 && (
+          <div className="mt-8 space-y-8">
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+                Review
+              </p>
+
+              <h2 className="mt-3 text-3xl font-bold text-slate-950">
+                Review & publish
+              </h2>
+
+              <p className="mt-4 max-w-3xl leading-7 text-slate-600">
+                Privacy settings, preview, and publishing will be built here
+                next.
+              </p>
+            </section>
+
+            <div className="border-t border-slate-200 pt-6">
+              <button
+                type="button"
+                onClick={goToPreviousStage}
+                className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
+              >
+                ← Back to Funding
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </PageContainer>
   );
