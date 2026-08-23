@@ -1,4 +1,5 @@
 import { useState } from 'react';
+
 import { PageContainer } from '../components/layout/PageContainer';
 import { ResearchEvidence } from '../components/build/ResearchEvidence';
 
@@ -39,12 +40,21 @@ const technologyReadinessLevels = [
   'Production ready',
 ];
 
+const validationMethods = [
+  'Not validated yet',
+  'User interviews',
+  'Survey',
+  'Prototype testing',
+  'Pilot',
+  'Experiment',
+  'Market research',
+  'Other',
+];
+
 export function Build() {
   const [currentStage, setCurrentStage] = useState(1);
 
-  // ============================================================
-  // STAGE 1 — IDEA
-  // ============================================================
+  // Stage 1: Idea
 
   // Basic information
   const [title, setTitle] = useState('');
@@ -63,9 +73,7 @@ export function Build() {
   const [howItWorks, setHowItWorks] = useState('');
   const [uniqueValue, setUniqueValue] = useState('');
 
-  // ============================================================
-  // STAGE 2 — EVIDENCE
-  // ============================================================
+  // Stage 2: Evidence
 
   // Technology
   const [technologyApproach, setTechnologyApproach] = useState('');
@@ -74,13 +82,16 @@ export function Build() {
   const [requiredTechnology, setRequiredTechnology] = useState('');
   const [existingImplementation, setExistingImplementation] = useState('');
 
-  const totalStages = stages.length;
-  
-  <ResearchEvidence />
+  // Validation
+  const [validationMethod, setValidationMethod] = useState('');
+  const [validationAudience, setValidationAudience] = useState('');
+  const [validationSampleSize, setValidationSampleSize] = useState('');
+  const [validationFindings, setValidationFindings] = useState('');
+  const [validationEvidence, setValidationEvidence] = useState('');
 
-  // ============================================================
-  // VALIDATION
-  // ============================================================
+  const totalStages = stages.length;
+
+  // Stage validation
 
   const isIdeaComplete =
     title.trim().length >= 5 &&
@@ -102,9 +113,16 @@ export function Build() {
     requiredTechnology.trim().length >= 20 &&
     existingImplementation.trim().length >= 20;
 
-  // ============================================================
-  // NAVIGATION
-  // ============================================================
+  const isValidationComplete =
+    validationMethod === 'Not validated yet' ||
+    (validationMethod !== '' &&
+      validationAudience.trim().length >= 5 &&
+      validationSampleSize.trim().length >= 1 &&
+      validationFindings.trim().length >= 20 &&
+      validationEvidence.trim().length >= 20);
+
+  const isEvidenceComplete =
+    isTechnologyComplete && isValidationComplete;
 
   function goToNextStage() {
     if (currentStage === 1) {
@@ -117,7 +135,7 @@ export function Build() {
     }
 
     if (currentStage === 2) {
-      if (!isTechnologyComplete) {
+      if (!isEvidenceComplete) {
         return;
       }
 
@@ -139,10 +157,7 @@ export function Build() {
   return (
     <PageContainer>
       <section className="py-10">
-        {/* ========================================================
-            HEADER
-        ======================================================== */}
-
+        {/* Header */}
         <div className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-600">
             Build
@@ -158,10 +173,7 @@ export function Build() {
           </p>
         </div>
 
-        {/* ========================================================
-            STAGE PROGRESS
-        ======================================================== */}
-
+        {/* Progress */}
         <div className="mt-12 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
@@ -179,7 +191,6 @@ export function Build() {
             </p>
           </div>
 
-          {/* Progress bar */}
           <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100">
             <div
               className="h-full rounded-full bg-emerald-500 transition-all duration-500"
@@ -189,7 +200,6 @@ export function Build() {
             />
           </div>
 
-          {/* Stage indicators */}
           <div className="mt-6 grid grid-cols-5 gap-2">
             {stages.map((stage, index) => {
               const stageNumber = index + 1;
@@ -229,16 +239,10 @@ export function Build() {
           </div>
         </div>
 
-        {/* ========================================================
-            STAGE 1 — IDEA
-        ======================================================== */}
-
+        {/* Stage 1: Idea */}
         {currentStage === 1 && (
           <div className="mt-8 space-y-8">
-            {/* ----------------------------------------------------
-                BASIC INFORMATION
-            ---------------------------------------------------- */}
-
+            {/* Basic information */}
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
               <div className="max-w-3xl">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
@@ -255,7 +259,6 @@ export function Build() {
               </div>
 
               <div className="mt-8 space-y-6">
-                {/* Title */}
                 <div>
                   <label
                     htmlFor="idea-title"
@@ -283,7 +286,6 @@ export function Build() {
                   </div>
                 </div>
 
-                {/* Description */}
                 <div>
                   <label
                     htmlFor="idea-description"
@@ -311,7 +313,6 @@ export function Build() {
                   </div>
                 </div>
 
-                {/* Category + Stage */}
                 <div className="grid gap-6 md:grid-cols-2">
                   <div>
                     <label
@@ -364,10 +365,7 @@ export function Build() {
               </div>
             </section>
 
-            {/* ----------------------------------------------------
-                PROBLEM
-            ---------------------------------------------------- */}
-
+            {/* Problem */}
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
               <div className="max-w-3xl">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
@@ -380,7 +378,6 @@ export function Build() {
               </div>
 
               <div className="mt-8 space-y-6">
-                {/* Problem statement */}
                 <div>
                   <label
                     htmlFor="problem-statement"
@@ -406,7 +403,6 @@ export function Build() {
                   </div>
                 </div>
 
-                {/* Target users */}
                 <div>
                   <label
                     htmlFor="target-users"
@@ -426,7 +422,6 @@ export function Build() {
                   />
                 </div>
 
-                {/* Current solution */}
                 <div>
                   <label
                     htmlFor="current-solution"
@@ -448,7 +443,6 @@ export function Build() {
                   />
                 </div>
 
-                {/* Evidence */}
                 <div>
                   <label
                     htmlFor="problem-evidence"
@@ -472,10 +466,7 @@ export function Build() {
               </div>
             </section>
 
-            {/* ----------------------------------------------------
-                SOLUTION
-            ---------------------------------------------------- */}
-
+            {/* Solution */}
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
               <div className="max-w-3xl">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
@@ -488,7 +479,6 @@ export function Build() {
               </div>
 
               <div className="mt-8 space-y-6">
-                {/* Proposed solution */}
                 <div>
                   <label
                     htmlFor="solution-description"
@@ -510,7 +500,6 @@ export function Build() {
                   />
                 </div>
 
-                {/* How it works */}
                 <div>
                   <label
                     htmlFor="how-it-works"
@@ -530,7 +519,6 @@ export function Build() {
                   />
                 </div>
 
-                {/* Unique value */}
                 <div>
                   <label
                     htmlFor="unique-value"
@@ -571,29 +559,24 @@ export function Build() {
           </div>
         )}
 
-        {/* ========================================================
-            STAGE 2 — EVIDENCE
-        ======================================================== */}
-
+        {/* Stage 2: Evidence */}
         {currentStage === 2 && (
           <div className="mt-8 space-y-8">
-            {/* Stage heading */}
+            {/* Stage intro */}
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-              <div className="max-w-3xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-                  Stage 2 · Evidence
-                </p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+                Evidence
+              </p>
 
-                <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">
-                  Show how your idea works
-                </h2>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">
+                Show how strong your idea is
+              </h2>
 
-                <p className="mt-4 leading-7 text-slate-600">
-                  Help people understand the technical or scientific
-                  foundation of your idea, what you have already built, and
-                  what you still need.
-                </p>
-              </div>
+              <p className="mt-4 max-w-3xl leading-7 text-slate-600">
+                Add the technical foundation, research, and real-world
+                validation that help other people understand and evaluate your
+                idea.
+              </p>
             </section>
 
             {/* Technology */}
@@ -608,14 +591,13 @@ export function Build() {
                 </h2>
 
                 <p className="mt-3 leading-7 text-slate-600">
-                  This section should work for software, engineering,
-                  biotechnology, climate research, materials science, and
-                  other technical projects.
+                  This works for software, engineering, biotechnology,
+                  climate research, materials science, and other technical
+                  projects.
                 </p>
               </div>
 
               <div className="mt-8 space-y-6">
-                {/* Technology approach */}
                 <div>
                   <label
                     htmlFor="technology-approach"
@@ -623,11 +605,6 @@ export function Build() {
                   >
                     What technology or approach are you using?
                   </label>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    Explain the core technical, scientific, or engineering
-                    approach.
-                  </p>
 
                   <textarea
                     id="technology-approach"
@@ -646,7 +623,6 @@ export function Build() {
                   </div>
                 </div>
 
-                {/* Technology domain */}
                 <div>
                   <label
                     htmlFor="technology-domain"
@@ -654,10 +630,6 @@ export function Build() {
                   >
                     Technology or scientific domain
                   </label>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    Identify the main technical or scientific field.
-                  </p>
 
                   <input
                     id="technology-domain"
@@ -676,7 +648,6 @@ export function Build() {
                   </div>
                 </div>
 
-                {/* Technology readiness */}
                 <div>
                   <label
                     htmlFor="technology-readiness"
@@ -684,10 +655,6 @@ export function Build() {
                   >
                     Current technology readiness
                   </label>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    Choose the option that best represents the current state.
-                  </p>
 
                   <select
                     id="technology-readiness"
@@ -709,7 +676,6 @@ export function Build() {
                   </select>
                 </div>
 
-                {/* Required technology */}
                 <div>
                   <label
                     htmlFor="required-technology"
@@ -717,11 +683,6 @@ export function Build() {
                   >
                     What technology or resources are still required?
                   </label>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    Tell potential collaborators what technical capabilities,
-                    equipment, infrastructure, or expertise you still need.
-                  </p>
 
                   <textarea
                     id="required-technology"
@@ -740,7 +701,6 @@ export function Build() {
                   </div>
                 </div>
 
-                {/* Existing implementation */}
                 <div>
                   <label
                     htmlFor="existing-implementation"
@@ -748,11 +708,6 @@ export function Build() {
                   >
                     What have you already built or tested?
                   </label>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    Describe any prototype, proof of concept, experiment,
-                    technical test, or implementation already completed.
-                  </p>
 
                   <textarea
                     id="existing-implementation"
@@ -773,6 +728,164 @@ export function Build() {
               </div>
             </section>
 
+            {/* Research */}
+            <ResearchEvidence />
+
+            {/* Validation */}
+            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+              <div className="max-w-3xl">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+                  Validation
+                </p>
+
+                <h2 className="mt-3 text-2xl font-bold text-slate-950">
+                  Show what you have learned so far
+                </h2>
+
+                <p className="mt-3 leading-7 text-slate-600">
+                  Validation helps people understand whether the problem and
+                  solution have been tested with real users, experiments, or
+                  other evidence.
+                </p>
+              </div>
+
+              <div className="mt-8 space-y-6">
+                {/* Method */}
+                <div>
+                  <label
+                    htmlFor="validation-method"
+                    className="block text-sm font-semibold text-slate-950"
+                  >
+                    How have you validated the idea?
+                  </label>
+
+                  <select
+                    id="validation-method"
+                    value={validationMethod}
+                    onChange={(event) =>
+                      setValidationMethod(event.target.value)
+                    }
+                    className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                  >
+                    <option value="">Select validation method</option>
+
+                    {validationMethods.map((method) => (
+                      <option key={method} value={method}>
+                        {method}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {validationMethod !== '' &&
+                  validationMethod !== 'Not validated yet' && (
+                    <>
+                      {/* Audience */}
+                      <div>
+                        <label
+                          htmlFor="validation-audience"
+                          className="block text-sm font-semibold text-slate-950"
+                        >
+                          Who did you test with?
+                        </label>
+
+                        <input
+                          id="validation-audience"
+                          type="text"
+                          value={validationAudience}
+                          onChange={(event) =>
+                            setValidationAudience(event.target.value)
+                          }
+                          placeholder="e.g. 25 farmers in Maharashtra"
+                          className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                        />
+                      </div>
+
+                      {/* Sample size */}
+                      <div>
+                        <label
+                          htmlFor="validation-sample-size"
+                          className="block text-sm font-semibold text-slate-950"
+                        >
+                          How many people or tests were involved?
+                        </label>
+
+                        <input
+                          id="validation-sample-size"
+                          type="number"
+                          min="1"
+                          value={validationSampleSize}
+                          onChange={(event) =>
+                            setValidationSampleSize(event.target.value)
+                          }
+                          placeholder="e.g. 25"
+                          className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                        />
+                      </div>
+
+                      {/* Findings */}
+                      <div>
+                        <label
+                          htmlFor="validation-findings"
+                          className="block text-sm font-semibold text-slate-950"
+                        >
+                          What did you learn?
+                        </label>
+
+                        <textarea
+                          id="validation-findings"
+                          value={validationFindings}
+                          onChange={(event) =>
+                            setValidationFindings(event.target.value)
+                          }
+                          placeholder="Describe the main findings from your validation..."
+                          maxLength={1200}
+                          rows={6}
+                          className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                        />
+
+                        <div className="mt-2 text-right text-xs text-slate-400">
+                          {validationFindings.length}/1200
+                        </div>
+                      </div>
+
+                      {/* Evidence */}
+                      <div>
+                        <label
+                          htmlFor="validation-evidence"
+                          className="block text-sm font-semibold text-slate-950"
+                        >
+                          What evidence supports the result?
+                        </label>
+
+                        <textarea
+                          id="validation-evidence"
+                          value={validationEvidence}
+                          onChange={(event) =>
+                            setValidationEvidence(event.target.value)
+                          }
+                          placeholder="Add measurable results, observations, links, or other supporting evidence..."
+                          maxLength={1200}
+                          rows={6}
+                          className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                        />
+
+                        <div className="mt-2 text-right text-xs text-slate-400">
+                          {validationEvidence.length}/1200
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                {validationMethod === 'Not validated yet' && (
+                  <div className="rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+                    That&apos;s okay. You can publish an early idea without
+                    validation and add validation evidence later.
+                  </div>
+                )}
+              </div>
+            </section>
+
             {/* Stage 2 navigation */}
             <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-between">
               <button
@@ -786,10 +899,10 @@ export function Build() {
               <button
                 type="button"
                 onClick={goToNextStage}
-                disabled={!isTechnologyComplete}
+                disabled={!isEvidenceComplete}
                 className={[
                   'rounded-xl px-6 py-3.5 text-sm font-semibold transition',
-                  isTechnologyComplete
+                  isEvidenceComplete
                     ? 'bg-slate-950 text-white hover:bg-slate-800'
                     : 'cursor-not-allowed bg-slate-100 text-slate-400',
                 ].join(' ')}
@@ -800,22 +913,19 @@ export function Build() {
           </div>
         )}
 
-        {/* ========================================================
-            STAGE 3 — COLLABORATION
-        ======================================================== */}
-
+        {/* Stage 3: Collaboration */}
         {currentStage === 3 && (
           <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-              Stage 3
+              Collaboration
             </p>
 
             <h2 className="mt-3 text-3xl font-bold text-slate-950">
-              Collaboration
+              Find the people you need
             </h2>
 
             <p className="mt-4 max-w-2xl leading-7 text-slate-600">
-              Team requirements, skills, roles, and collaboration needs will
+              Team requirements, roles, skills, and collaboration needs will
               be built here next.
             </p>
 
@@ -829,22 +939,19 @@ export function Build() {
           </section>
         )}
 
-        {/* ========================================================
-            STAGE 4 — FUNDING
-        ======================================================== */}
-
+        {/* Stage 4: Funding */}
         {currentStage === 4 && (
           <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-              Stage 4
+              Funding
             </p>
 
             <h2 className="mt-3 text-3xl font-bold text-slate-950">
-              Funding & Resources
+              Funding & resources
             </h2>
 
             <p className="mt-4 max-w-2xl leading-7 text-slate-600">
-              Funding requirements and other resources will be built here
+              Funding requirements and other resource needs will be built here
               next.
             </p>
 
@@ -858,18 +965,15 @@ export function Build() {
           </section>
         )}
 
-        {/* ========================================================
-            STAGE 5 — REVIEW
-        ======================================================== */}
-
+        {/* Stage 5: Review */}
         {currentStage === 5 && (
           <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-              Stage 5
+              Review
             </p>
 
             <h2 className="mt-3 text-3xl font-bold text-slate-950">
-              Review & Publish
+              Review & publish
             </h2>
 
             <p className="mt-4 max-w-2xl leading-7 text-slate-600">
