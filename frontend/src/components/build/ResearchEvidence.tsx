@@ -1,23 +1,13 @@
 import { useState } from 'react';
 
-type EvidenceType =
-  | 'Research Paper'
-  | 'Patent'
-  | 'Dataset'
-  | 'Experiment'
-  | 'Survey'
-  | 'Report'
-  | 'Website'
-  | 'Other';
+import type {
+  EvidenceType,
+  ResearchItem,
+} from '../../types/build';
 
-type EvidenceItem = {
-  id: string;
-  type: EvidenceType;
-  title: string;
-  url: string;
-  source: string;
-  year: string;
-  relevance: string;
+type ResearchEvidenceProps = {
+  items: ResearchItem[];
+  onChange: (items: ResearchItem[]) => void;
 };
 
 const evidenceTypes: EvidenceType[] = [
@@ -31,9 +21,10 @@ const evidenceTypes: EvidenceType[] = [
   'Other',
 ];
 
-export function ResearchEvidence() {
-  const [items, setItems] = useState<EvidenceItem[]>([]);
-
+export function ResearchEvidence({
+  items,
+  onChange,
+}: ResearchEvidenceProps) {
   const [isAdding, setIsAdding] = useState(false);
 
   const [type, setType] = useState<EvidenceType>('Research Paper');
@@ -54,7 +45,11 @@ export function ResearchEvidence() {
   }
 
   function addEvidence() {
-    const newItem: EvidenceItem = {
+    if (!isFormValid) {
+      return;
+    }
+
+    const newItem: ResearchItem = {
       id: crypto.randomUUID(),
       type,
       title: title.trim(),
@@ -64,15 +59,13 @@ export function ResearchEvidence() {
       relevance: relevance.trim(),
     };
 
-    setItems((currentItems) => [...currentItems, newItem]);
+    onChange([...items, newItem]);
 
     resetForm();
   }
 
   function removeEvidence(id: string) {
-    setItems((currentItems) =>
-      currentItems.filter((item) => item.id !== id),
-    );
+    onChange(items.filter((item) => item.id !== id));
   }
 
   const isFormValid =
@@ -285,7 +278,7 @@ export function ResearchEvidence() {
               </div>
             </div>
 
-            {/* Add button */}
+            {/* Add */}
             <div className="flex justify-end border-t border-slate-200 pt-5">
               <button
                 type="button"
@@ -329,8 +322,8 @@ export function ResearchEvidence() {
         </div>
       )}
 
-      {/* Evidence list */}
-           {items.length > 0 && (
+      {/* Added evidence */}
+      {items.length > 0 && (
         <div className="mt-8 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-slate-950">

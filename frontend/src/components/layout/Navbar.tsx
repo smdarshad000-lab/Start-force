@@ -17,7 +17,7 @@ export function Navbar() {
           to="/"
           className="text-xl font-bold tracking-tight text-slate-950"
         >
-          STAT<span className="text-emerald-600">-FORCE</span>
+          START<span className="text-emerald-600">-FORCE</span>
         </NavLink>
 
         <nav className="flex items-center gap-1">

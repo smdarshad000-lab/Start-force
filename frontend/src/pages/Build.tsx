@@ -5,6 +5,11 @@ import { FundingNeeds } from '../components/build/FundingNeeds';
 import { ResearchEvidence } from '../components/build/ResearchEvidence';
 import { PageContainer } from '../components/layout/PageContainer';
 
+import {
+  initialBuildDraft,
+  type BuildDraft,
+} from '../types/build';
+
 const stages = [
   'Idea',
   'Evidence',
@@ -56,75 +61,54 @@ const validationMethods = [
 export function Build() {
   const [currentStage, setCurrentStage] = useState(1);
 
-  // Stage 1: Idea
-
-  // Basic information
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('');
-  const [ideaStage, setIdeaStage] = useState('');
-
-  // Problem
-  const [problemStatement, setProblemStatement] = useState('');
-  const [targetUsers, setTargetUsers] = useState('');
-  const [currentSolution, setCurrentSolution] = useState('');
-  const [problemEvidence, setProblemEvidence] = useState('');
-
-  // Solution
-  const [solutionDescription, setSolutionDescription] = useState('');
-  const [howItWorks, setHowItWorks] = useState('');
-  const [uniqueValue, setUniqueValue] = useState('');
-
-  // Stage 2: Evidence
-
-  // Technology
-  const [technologyApproach, setTechnologyApproach] = useState('');
-  const [technologyDomain, setTechnologyDomain] = useState('');
-  const [technologyReadiness, setTechnologyReadiness] = useState('');
-  const [requiredTechnology, setRequiredTechnology] = useState('');
-  const [existingImplementation, setExistingImplementation] = useState('');
-
-  // Validation
-  const [validationMethod, setValidationMethod] = useState('');
-  const [validationAudience, setValidationAudience] = useState('');
-  const [validationSampleSize, setValidationSampleSize] = useState('');
-  const [validationFindings, setValidationFindings] = useState('');
-  const [validationEvidence, setValidationEvidence] = useState('');
+  // The entire Build form is stored in one draft.
+  const [draft, setDraft] = useState<BuildDraft>(initialBuildDraft);
 
   const totalStages = stages.length;
 
-  // Validation
-
+  // Stage 1 validation
   const isIdeaComplete =
-    title.trim().length >= 5 &&
-    description.trim().length >= 20 &&
-    category !== '' &&
-    ideaStage !== '' &&
-    problemStatement.trim().length >= 30 &&
-    targetUsers.trim().length >= 10 &&
-    currentSolution.trim().length >= 20 &&
-    problemEvidence.trim().length >= 20 &&
-    solutionDescription.trim().length >= 30 &&
-    howItWorks.trim().length >= 30 &&
-    uniqueValue.trim().length >= 20;
+    draft.title.trim().length >= 5 &&
+    draft.description.trim().length >= 20 &&
+    draft.category !== '' &&
+    draft.ideaStage !== '' &&
+    draft.problemStatement.trim().length >= 30 &&
+    draft.targetUsers.trim().length >= 10 &&
+    draft.currentSolution.trim().length >= 20 &&
+    draft.problemEvidence.trim().length >= 20 &&
+    draft.solutionDescription.trim().length >= 30 &&
+    draft.howItWorks.trim().length >= 30 &&
+    draft.uniqueValue.trim().length >= 20;
 
+  // Technology validation
   const isTechnologyComplete =
-    technologyApproach.trim().length >= 30 &&
-    technologyDomain.trim().length >= 5 &&
-    technologyReadiness !== '' &&
-    requiredTechnology.trim().length >= 20 &&
-    existingImplementation.trim().length >= 20;
+    draft.technologyApproach.trim().length >= 30 &&
+    draft.technologyDomain.trim().length >= 5 &&
+    draft.technologyReadiness !== '' &&
+    draft.requiredTechnology.trim().length >= 20 &&
+    draft.existingImplementation.trim().length >= 20;
 
+  // Validation section
   const isValidationComplete =
-    validationMethod === 'Not validated yet' ||
-    (validationMethod !== '' &&
-      validationAudience.trim().length >= 5 &&
-      validationSampleSize.trim().length >= 1 &&
-      validationFindings.trim().length >= 20 &&
-      validationEvidence.trim().length >= 20);
+    draft.validationMethod === 'Not validated yet' ||
+    (draft.validationMethod !== '' &&
+      draft.validationAudience.trim().length >= 5 &&
+      draft.validationSampleSize.trim().length >= 1 &&
+      draft.validationFindings.trim().length >= 20 &&
+      draft.validationEvidence.trim().length >= 20);
 
   const isEvidenceComplete =
     isTechnologyComplete && isValidationComplete;
+
+  function updateDraft<K extends keyof BuildDraft>(
+    field: K,
+    value: BuildDraft[K],
+  ) {
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      [field]: value,
+    }));
+  }
 
   function goToNextStage() {
     if (currentStage === 1) {
@@ -261,6 +245,7 @@ export function Build() {
               </div>
 
               <div className="mt-8 space-y-6">
+                {/* Title */}
                 <div>
                   <label
                     htmlFor="idea-title"
@@ -269,25 +254,28 @@ export function Build() {
                     Idea title
                   </label>
 
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 text-lg text-slate-500">
                     Give your idea a clear and memorable name.
                   </p>
 
                   <input
                     id="idea-title"
                     type="text"
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
+                    value={draft.title}
+                    onChange={(event) =>
+                      updateDraft('title', event.target.value)
+                    }
                     placeholder="e.g. AI Crop Disease Detection"
                     maxLength={100}
                     className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
 
                   <div className="mt-2 text-right text-xs text-slate-400">
-                    {title.length}/100
+                    {draft.title.length}/100
                   </div>
                 </div>
 
+                {/* Description */}
                 <div>
                   <label
                     htmlFor="idea-description"
@@ -302,8 +290,10 @@ export function Build() {
 
                   <textarea
                     id="idea-description"
-                    value={description}
-                    onChange={(event) => setDescription(event.target.value)}
+                    value={draft.description}
+                    onChange={(event) =>
+                      updateDraft('description', event.target.value)
+                    }
                     placeholder="Describe what your idea does and who it helps..."
                     maxLength={500}
                     rows={5}
@@ -311,10 +301,11 @@ export function Build() {
                   />
 
                   <div className="mt-2 text-right text-xs text-slate-400">
-                    {description.length}/500
+                    {draft.description.length}/500
                   </div>
                 </div>
 
+                {/* Category + Stage */}
                 <div className="grid gap-6 md:grid-cols-2">
                   <div>
                     <label
@@ -326,8 +317,10 @@ export function Build() {
 
                     <select
                       id="idea-category"
-                      value={category}
-                      onChange={(event) => setCategory(event.target.value)}
+                      value={draft.category}
+                      onChange={(event) =>
+                        updateDraft('category', event.target.value)
+                      }
                       className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                     >
                       <option value="">Select a category</option>
@@ -350,8 +343,10 @@ export function Build() {
 
                     <select
                       id="idea-stage"
-                      value={ideaStage}
-                      onChange={(event) => setIdeaStage(event.target.value)}
+                      value={draft.ideaStage}
+                      onChange={(event) =>
+                        updateDraft('ideaStage', event.target.value)
+                      }
                       className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                     >
                       <option value="">Select current stage</option>
@@ -390,9 +385,9 @@ export function Build() {
 
                   <textarea
                     id="problem-statement"
-                    value={problemStatement}
+                    value={draft.problemStatement}
                     onChange={(event) =>
-                      setProblemStatement(event.target.value)
+                      updateDraft('problemStatement', event.target.value)
                     }
                     placeholder="Describe the problem clearly and specifically..."
                     maxLength={1000}
@@ -401,7 +396,7 @@ export function Build() {
                   />
 
                   <div className="mt-2 text-right text-xs text-slate-400">
-                    {problemStatement.length}/1000
+                    {draft.problemStatement.length}/1000
                   </div>
                 </div>
 
@@ -415,8 +410,10 @@ export function Build() {
 
                   <textarea
                     id="target-users"
-                    value={targetUsers}
-                    onChange={(event) => setTargetUsers(event.target.value)}
+                    value={draft.targetUsers}
+                    onChange={(event) =>
+                      updateDraft('targetUsers', event.target.value)
+                    }
                     placeholder="Identify the people, organizations, or communities affected..."
                     maxLength={500}
                     rows={4}
@@ -434,9 +431,9 @@ export function Build() {
 
                   <textarea
                     id="current-solution"
-                    value={currentSolution}
+                    value={draft.currentSolution}
                     onChange={(event) =>
-                      setCurrentSolution(event.target.value)
+                      updateDraft('currentSolution', event.target.value)
                     }
                     placeholder="Explain existing alternatives or processes..."
                     maxLength={750}
@@ -455,9 +452,9 @@ export function Build() {
 
                   <textarea
                     id="problem-evidence"
-                    value={problemEvidence}
+                    value={draft.problemEvidence}
                     onChange={(event) =>
-                      setProblemEvidence(event.target.value)
+                      updateDraft('problemEvidence', event.target.value)
                     }
                     placeholder="Share interviews, observations, research, surveys, statistics..."
                     maxLength={1000}
@@ -491,9 +488,9 @@ export function Build() {
 
                   <textarea
                     id="solution-description"
-                    value={solutionDescription}
+                    value={draft.solutionDescription}
                     onChange={(event) =>
-                      setSolutionDescription(event.target.value)
+                      updateDraft('solutionDescription', event.target.value)
                     }
                     placeholder="Describe the product, service, system, or approach..."
                     maxLength={1200}
@@ -512,8 +509,10 @@ export function Build() {
 
                   <textarea
                     id="how-it-works"
-                    value={howItWorks}
-                    onChange={(event) => setHowItWorks(event.target.value)}
+                    value={draft.howItWorks}
+                    onChange={(event) =>
+                      updateDraft('howItWorks', event.target.value)
+                    }
                     placeholder="Describe the main workflow or mechanism..."
                     maxLength={1200}
                     rows={7}
@@ -531,8 +530,10 @@ export function Build() {
 
                   <textarea
                     id="unique-value"
-                    value={uniqueValue}
-                    onChange={(event) => setUniqueValue(event.target.value)}
+                    value={draft.uniqueValue}
+                    onChange={(event) =>
+                      updateDraft('uniqueValue', event.target.value)
+                    }
                     placeholder="Explain your key advantage or differentiator..."
                     maxLength={800}
                     rows={5}
@@ -542,7 +543,6 @@ export function Build() {
               </div>
             </section>
 
-            {/* Stage 1 navigation */}
             <div className="flex justify-end border-t border-slate-200 pt-6">
               <button
                 type="button"
@@ -609,9 +609,9 @@ export function Build() {
 
                   <textarea
                     id="technology-approach"
-                    value={technologyApproach}
+                    value={draft.technologyApproach}
                     onChange={(event) =>
-                      setTechnologyApproach(event.target.value)
+                      updateDraft('technologyApproach', event.target.value)
                     }
                     placeholder="Example: A computer-vision model trained on crop disease images..."
                     maxLength={1200}
@@ -620,7 +620,7 @@ export function Build() {
                   />
 
                   <div className="mt-2 text-right text-xs text-slate-400">
-                    {technologyApproach.length}/1200
+                    {draft.technologyApproach.length}/1200
                   </div>
                 </div>
 
@@ -635,9 +635,9 @@ export function Build() {
                   <input
                     id="technology-domain"
                     type="text"
-                    value={technologyDomain}
+                    value={draft.technologyDomain}
                     onChange={(event) =>
-                      setTechnologyDomain(event.target.value)
+                      updateDraft('technologyDomain', event.target.value)
                     }
                     placeholder="e.g. Computer Vision, Biotechnology, Materials Science"
                     maxLength={150}
@@ -645,7 +645,7 @@ export function Build() {
                   />
 
                   <div className="mt-2 text-right text-xs text-slate-400">
-                    {technologyDomain.length}/150
+                    {draft.technologyDomain.length}/150
                   </div>
                 </div>
 
@@ -659,9 +659,9 @@ export function Build() {
 
                   <select
                     id="technology-readiness"
-                    value={technologyReadiness}
+                    value={draft.technologyReadiness}
                     onChange={(event) =>
-                      setTechnologyReadiness(event.target.value)
+                      updateDraft('technologyReadiness', event.target.value)
                     }
                     className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   >
@@ -687,9 +687,9 @@ export function Build() {
 
                   <textarea
                     id="required-technology"
-                    value={requiredTechnology}
+                    value={draft.requiredTechnology}
                     onChange={(event) =>
-                      setRequiredTechnology(event.target.value)
+                      updateDraft('requiredTechnology', event.target.value)
                     }
                     placeholder="Example: GPU compute, ML engineer, agricultural dataset, field testing equipment..."
                     maxLength={1000}
@@ -698,7 +698,7 @@ export function Build() {
                   />
 
                   <div className="mt-2 text-right text-xs text-slate-400">
-                    {requiredTechnology.length}/1000
+                    {draft.requiredTechnology.length}/1000
                   </div>
                 </div>
 
@@ -712,9 +712,12 @@ export function Build() {
 
                   <textarea
                     id="existing-implementation"
-                    value={existingImplementation}
+                    value={draft.existingImplementation}
                     onChange={(event) =>
-                      setExistingImplementation(event.target.value)
+                      updateDraft(
+                        'existingImplementation',
+                        event.target.value,
+                      )
                     }
                     placeholder="Example: We built an initial prototype and tested it on 500 images..."
                     maxLength={1000}
@@ -723,14 +726,19 @@ export function Build() {
                   />
 
                   <div className="mt-2 text-right text-xs text-slate-400">
-                    {existingImplementation.length}/1000
+                    {draft.existingImplementation.length}/1000
                   </div>
                 </div>
               </div>
             </section>
 
             {/* Research */}
-            <ResearchEvidence />
+            <ResearchEvidence
+              items={draft.research}
+              onChange={(research) =>
+                updateDraft('research', research)
+              }
+            />
 
             {/* Validation */}
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -761,9 +769,9 @@ export function Build() {
 
                   <select
                     id="validation-method"
-                    value={validationMethod}
+                    value={draft.validationMethod}
                     onChange={(event) =>
-                      setValidationMethod(event.target.value)
+                      updateDraft('validationMethod', event.target.value)
                     }
                     className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   >
@@ -777,8 +785,8 @@ export function Build() {
                   </select>
                 </div>
 
-                {validationMethod !== '' &&
-                  validationMethod !== 'Not validated yet' && (
+                {draft.validationMethod !== '' &&
+                  draft.validationMethod !== 'Not validated yet' && (
                     <>
                       <div>
                         <label
@@ -791,9 +799,12 @@ export function Build() {
                         <input
                           id="validation-audience"
                           type="text"
-                          value={validationAudience}
+                          value={draft.validationAudience}
                           onChange={(event) =>
-                            setValidationAudience(event.target.value)
+                            updateDraft(
+                              'validationAudience',
+                              event.target.value,
+                            )
                           }
                           placeholder="e.g. 25 farmers in Maharashtra"
                           className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
@@ -812,9 +823,12 @@ export function Build() {
                           id="validation-sample-size"
                           type="number"
                           min="1"
-                          value={validationSampleSize}
+                          value={draft.validationSampleSize}
                           onChange={(event) =>
-                            setValidationSampleSize(event.target.value)
+                            updateDraft(
+                              'validationSampleSize',
+                              event.target.value,
+                            )
                           }
                           placeholder="e.g. 25"
                           className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
@@ -831,9 +845,12 @@ export function Build() {
 
                         <textarea
                           id="validation-findings"
-                          value={validationFindings}
+                          value={draft.validationFindings}
                           onChange={(event) =>
-                            setValidationFindings(event.target.value)
+                            updateDraft(
+                              'validationFindings',
+                              event.target.value,
+                            )
                           }
                           placeholder="Describe the main findings from your validation..."
                           maxLength={1200}
@@ -842,23 +859,26 @@ export function Build() {
                         />
 
                         <div className="mt-2 text-right text-xs text-slate-400">
-                          {validationFindings.length}/1200
+                          {draft.validationFindings.length}/1200
                         </div>
                       </div>
 
                       <div>
                         <label
                           htmlFor="validation-evidence"
-                          className="block text-sm font-semibold text-slate-950"
+                          className="block text-lg font-semibold text-slate-950"
                         >
                           What evidence supports the result?
                         </label>
 
                         <textarea
                           id="validation-evidence"
-                          value={validationEvidence}
+                          value={draft.validationEvidence}
                           onChange={(event) =>
-                            setValidationEvidence(event.target.value)
+                            updateDraft(
+                              'validationEvidence',
+                              event.target.value,
+                            )
                           }
                           placeholder="Add measurable results, observations, links, or other supporting evidence..."
                           maxLength={1200}
@@ -867,13 +887,13 @@ export function Build() {
                         />
 
                         <div className="mt-2 text-right text-xs text-slate-400">
-                          {validationEvidence.length}/1200
+                          {draft.validationEvidence.length}/1200
                         </div>
                       </div>
                     </>
                   )}
 
-                {validationMethod === 'Not validated yet' && (
+                {draft.validationMethod === 'Not validated yet' && (
                   <div className="rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-800">
                     That&apos;s okay. You can publish an early idea without
                     validation and add validation evidence later.
@@ -1005,4 +1025,4 @@ export function Build() {
       </section>
     </PageContainer>
   );
-}
+}                   
