@@ -1,4 +1,4 @@
-# Stat-force
+# Start-force
 
 Stat-force is an India-focused innovation intelligence and collaboration platform.
 
