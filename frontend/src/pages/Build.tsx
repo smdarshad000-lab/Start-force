@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { CollaborationNeeds } from '../components/build/CollaborationNeeds';
 import { FundingNeeds } from '../components/build/FundingNeeds';
 import { ResearchEvidence } from '../components/build/ResearchEvidence';
+import { ReviewStage } from '../components/build/ReviewStage';
 import { PageContainer } from '../components/layout/PageContainer';
 
 import {
@@ -982,7 +983,10 @@ export function Build() {
               </p>
             </section>
 
-            <FundingNeeds />
+            <FundingNeeds
+                   funding={draft.funding}
+                    onChange={(funding) =>
+                    updateDraft('funding', funding)}/>
 
             <div className="border-t border-slate-200 pt-6">
               <button
@@ -997,35 +1001,32 @@ export function Build() {
         )}
 
         {/* Stage 5: Review */}
-        {currentStage === 5 && (
-          <div className="mt-8 space-y-8">
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-                Review
-              </p>
+         {currentStage === 5 && (
+           <div className="mt-8">
+             <ReviewStage
+                  draft={draft}
+                  onSaveDraft={() => {
+                  console.log('Draft saved:', draft);
+      }}
+            onPublish={(visibility) => {
+            console.log('Publishing idea:', {
+            draft,
+            visibility,
+           });
+        }}
+      />
 
-              <h2 className="mt-3 text-3xl font-bold text-slate-950">
-                Review & publish
-              </h2>
-
-              <p className="mt-4 max-w-3xl leading-7 text-slate-600">
-                Privacy settings, preview, and publishing will be built here
-                next.
-              </p>
+           <div className="mt-6 border-t border-slate-200 pt-6">
+          <button
+               type="button"
+               onClick={goToPreviousStage}
+               className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50">
+              ← Back to Funding
+           </button>
+    </div>
+  </div>
+)}
             </section>
-
-            <div className="border-t border-slate-200 pt-6">
-              <button
-                type="button"
-                onClick={goToPreviousStage}
-                className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
-              >
-                ← Back to Funding
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-    </PageContainer>
+        </PageContainer>
   );
 }                   

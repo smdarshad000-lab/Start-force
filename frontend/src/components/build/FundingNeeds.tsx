@@ -1,36 +1,16 @@
 import { useState } from 'react';
 
-type FundingType =
-  | 'Grant'
-  | 'Investment'
-  | 'Loan'
-  | 'Bootstrapped'
-  | 'Crowdfunding'
-  | 'Other';
+import type {
+  FundingData,
+  FundingPurpose,
+  FundingType,
+  ResourceNeed,
+  ResourceType,
+} from '../../types/build';
 
-type FundingPurpose =
-  | 'Research'
-  | 'Prototype'
-  | 'Equipment'
-  | 'Team'
-  | 'Operations'
-  | 'Marketing'
-  | 'Testing'
-  | 'Other';
-
-type ResourceType =
-  | 'Lab access'
-  | 'GPU / Compute'
-  | 'Equipment'
-  | 'Dataset'
-  | 'Field access'
-  | 'Mentorship'
-  | 'Other';
-
-type ResourceNeed = {
-  id: string;
-  type: ResourceType;
-  description: string;
+type FundingNeedsProps = {
+  funding: FundingData;
+  onChange: (funding: FundingData) => void;
 };
 
 const fundingTypes: FundingType[] = [
@@ -63,21 +43,27 @@ const resourceTypes: ResourceType[] = [
   'Other',
 ];
 
-export function FundingNeeds() {
-  const [needsFunding, setNeedsFunding] = useState('');
-  const [fundingAmount, setFundingAmount] = useState('');
-  const [fundingType, setFundingType] = useState<FundingType | ''>('');
-  const [fundingPurpose, setFundingPurpose] = useState<FundingPurpose | ''>(
-    '',
-  );
-
-  const [resourceNeeds, setResourceNeeds] = useState<ResourceNeed[]>([]);
+export function FundingNeeds({
+  funding,
+  onChange,
+}: FundingNeedsProps) {
   const [isAddingResource, setIsAddingResource] = useState(false);
 
-  const [resourceType, setResourceType] = useState<ResourceType>(
-    'Lab access',
-  );
-  const [resourceDescription, setResourceDescription] = useState('');
+  const [resourceType, setResourceType] =
+    useState<ResourceType>('Lab access');
+
+  const [resourceDescription, setResourceDescription] =
+    useState('');
+
+  function updateFunding<K extends keyof FundingData>(
+    field: K,
+    value: FundingData[K],
+  ) {
+    onChange({
+      ...funding,
+      [field]: value,
+    });
+  }
 
   function addResource() {
     if (resourceDescription.trim().length < 5) {
@@ -90,28 +76,32 @@ export function FundingNeeds() {
       description: resourceDescription.trim(),
     };
 
-    setResourceNeeds((currentResources) => [
-      ...currentResources,
+    updateFunding('resources', [
+      ...funding.resources,
       newResource,
     ]);
 
     setResourceDescription('');
+    setResourceType('Lab access');
     setIsAddingResource(false);
   }
 
   function removeResource(id: string) {
-    setResourceNeeds((currentResources) =>
-      currentResources.filter((resource) => resource.id !== id),
+    updateFunding(
+      'resources',
+      funding.resources.filter(
+        (resource) => resource.id !== id,
+      ),
     );
   }
 
   const fundingComplete =
-    needsFunding === 'No' ||
-    (needsFunding === 'Yes' &&
-      fundingAmount.trim() !== '' &&
-      Number(fundingAmount) > 0 &&
-      fundingType !== '' &&
-      fundingPurpose !== '');
+    funding.needsFunding === 'No' ||
+    (funding.needsFunding === 'Yes' &&
+      funding.amount.trim() !== '' &&
+      Number(funding.amount) > 0 &&
+      funding.type !== '' &&
+      funding.purpose !== '');
 
   return (
     <div className="space-y-8">
@@ -141,13 +131,16 @@ export function FundingNeeds() {
 
             <div className="mt-3 flex flex-wrap gap-3">
               {['Yes', 'No'].map((option) => {
-                const isActive = needsFunding === option;
+                const isActive =
+                  funding.needsFunding === option;
 
                 return (
                   <button
                     key={option}
                     type="button"
-                    onClick={() => setNeedsFunding(option)}
+                    onClick={() =>
+                      updateFunding('needsFunding', option)
+                    }
                     className={[
                       'rounded-xl px-5 py-3 text-sm font-semibold transition',
                       isActive
@@ -163,7 +156,7 @@ export function FundingNeeds() {
           </div>
 
           {/* Funding fields */}
-          {needsFunding === 'Yes' && (
+          {funding.needsFunding === 'Yes' && (
             <>
               <div>
                 <label
@@ -182,9 +175,12 @@ export function FundingNeeds() {
                     id="funding-amount"
                     type="number"
                     min="1"
-                    value={fundingAmount}
+                    value={funding.amount}
                     onChange={(event) =>
-                      setFundingAmount(event.target.value)
+                      updateFunding(
+                        'amount',
+                        event.target.value,
+                      )
                     }
                     placeholder="e.g. 1500000"
                     className="min-w-0 flex-1 rounded-r-xl px-4 py-3.5 text-slate-950 outline-none"
@@ -203,15 +199,18 @@ export function FundingNeeds() {
 
                   <select
                     id="funding-type"
-                    value={fundingType}
+                    value={funding.type}
                     onChange={(event) =>
-                      setFundingType(
+                      updateFunding(
+                        'type',
                         event.target.value as FundingType,
                       )
                     }
                     className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   >
-                    <option value="">Select funding type</option>
+                    <option value="">
+                      Select funding type
+                    </option>
 
                     {fundingTypes.map((type) => (
                       <option key={type} value={type}>
@@ -231,15 +230,18 @@ export function FundingNeeds() {
 
                   <select
                     id="funding-purpose"
-                    value={fundingPurpose}
+                    value={funding.purpose}
                     onChange={(event) =>
-                      setFundingPurpose(
+                      updateFunding(
+                        'purpose',
                         event.target.value as FundingPurpose,
                       )
                     }
                     className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   >
-                    <option value="">Select purpose</option>
+                    <option value="">
+                      Select purpose
+                    </option>
 
                     {fundingPurposes.map((purpose) => (
                       <option key={purpose} value={purpose}>
@@ -252,14 +254,14 @@ export function FundingNeeds() {
             </>
           )}
 
-          {needsFunding === 'No' && (
+          {funding.needsFunding === 'No' && (
             <div className="rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-              That&apos;s completely fine. You can still list the non-financial
-              resources that would help your idea progress.
+              That&apos;s completely fine. You can still list the
+              non-financial resources that would help your idea progress.
             </div>
           )}
 
-          {needsFunding !== '' && (
+          {funding.needsFunding !== '' && (
             <div
               className={[
                 'rounded-xl p-4 text-sm',
@@ -322,7 +324,9 @@ export function FundingNeeds() {
                   id="resource-type"
                   value={resourceType}
                   onChange={(event) =>
-                    setResourceType(event.target.value as ResourceType)
+                    setResourceType(
+                      event.target.value as ResourceType,
+                    )
                   }
                   className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                 >
@@ -364,6 +368,7 @@ export function FundingNeeds() {
                   type="button"
                   onClick={() => {
                     setResourceDescription('');
+                    setResourceType('Lab access');
                     setIsAddingResource(false);
                   }}
                   className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-white"
@@ -390,20 +395,22 @@ export function FundingNeeds() {
         )}
 
         {/* Resource list */}
-        {resourceNeeds.length === 0 && !isAddingResource && (
-          <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
-            <h3 className="text-lg font-semibold text-slate-950">
-              No additional resources listed
-            </h3>
+        {funding.resources.length === 0 &&
+          !isAddingResource && (
+            <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+              <h3 className="text-lg font-semibold text-slate-950">
+                No additional resources listed
+              </h3>
 
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-              Add non-financial resources if they would help your project move
-              forward.
-            </p>
-          </div>
-        )}
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+                Add non-financial resources if they would help your project
+                move forward.
+              </p>
+            </div>
+          )}
 
-        {resourceNeeds.length > 0 && (
+        {/* Resource list */}
+        {funding.resources.length > 0 && (
           <div className="mt-8 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-slate-950">
@@ -411,12 +418,14 @@ export function FundingNeeds() {
               </h3>
 
               <p className="text-sm text-slate-500">
-                {resourceNeeds.length}{' '}
-                {resourceNeeds.length === 1 ? 'item' : 'items'}
+                {funding.resources.length}{' '}
+                {funding.resources.length === 1
+                  ? 'item'
+                  : 'items'}
               </p>
             </div>
 
-            {resourceNeeds.map((resource) => (
+            {funding.resources.map((resource) => (
               <article
                 key={resource.id}
                 className="rounded-2xl border border-slate-200 p-5"
