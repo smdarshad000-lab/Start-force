@@ -1,19 +1,13 @@
 import { useState } from 'react';
 
-type CollaborationType =
-  | 'Co-founder'
-  | 'Team member'
-  | 'Researcher'
-  | 'Advisor'
-  | 'Volunteer';
+import type {
+  CollaborationNeed,
+  CollaborationType,
+} from '../../types/build';
 
-type TeamNeed = {
-  id: string;
-  role: string;
-  responsibilities: string;
-  skills: string;
-  openings: string;
-  collaborationType: CollaborationType;
+type CollaborationNeedsProps = {
+  items: CollaborationNeed[];
+  onChange: (items: CollaborationNeed[]) => void;
 };
 
 const collaborationTypes: CollaborationType[] = [
@@ -24,8 +18,10 @@ const collaborationTypes: CollaborationType[] = [
   'Volunteer',
 ];
 
-export function CollaborationNeeds() {
-  const [teamNeeds, setTeamNeeds] = useState<TeamNeed[]>([]);
+export function CollaborationNeeds({
+  items,
+  onChange,
+}: CollaborationNeedsProps) {
   const [isAdding, setIsAdding] = useState(false);
 
   const [role, setRole] = useState('');
@@ -34,6 +30,12 @@ export function CollaborationNeeds() {
   const [openings, setOpenings] = useState('1');
   const [collaborationType, setCollaborationType] =
     useState<CollaborationType>('Team member');
+
+  const isFormValid =
+    role.trim().length >= 3 &&
+    responsibilities.trim().length >= 15 &&
+    skills.trim().length >= 3 &&
+    Number(openings) >= 1;
 
   function resetForm() {
     setRole('');
@@ -45,7 +47,11 @@ export function CollaborationNeeds() {
   }
 
   function addTeamNeed() {
-    const newNeed: TeamNeed = {
+    if (!isFormValid) {
+      return;
+    }
+
+    const newNeed: CollaborationNeed = {
       id: crypto.randomUUID(),
       role: role.trim(),
       responsibilities: responsibilities.trim(),
@@ -54,22 +60,14 @@ export function CollaborationNeeds() {
       collaborationType,
     };
 
-    setTeamNeeds((currentNeeds) => [...currentNeeds, newNeed]);
+    onChange([...items, newNeed]);
 
     resetForm();
   }
 
   function removeTeamNeed(id: string) {
-    setTeamNeeds((currentNeeds) =>
-      currentNeeds.filter((item) => item.id !== id),
-    );
+    onChange(items.filter((item) => item.id !== id));
   }
-
-  const isFormValid =
-    role.trim().length >= 3 &&
-    responsibilities.trim().length >= 15 &&
-    skills.trim().length >= 3 &&
-    Number(openings) >= 1;
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -101,8 +99,8 @@ export function CollaborationNeeds() {
         )}
       </div>
 
-      {/* Optional state */}
-      {teamNeeds.length === 0 && !isAdding && (
+      {/* Empty state */}
+      {items.length === 0 && !isAdding && (
         <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
           <h3 className="text-lg font-semibold text-slate-950">
             No collaboration needs added
@@ -286,7 +284,7 @@ export function CollaborationNeeds() {
       )}
 
       {/* Added needs */}
-      {teamNeeds.length > 0 && (
+      {items.length > 0 && (
         <div className="mt-8 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-slate-950">
@@ -294,12 +292,11 @@ export function CollaborationNeeds() {
             </h3>
 
             <p className="text-sm text-slate-500">
-              {teamNeeds.length}{' '}
-              {teamNeeds.length === 1 ? 'role' : 'roles'}
+              {items.length} {items.length === 1 ? 'role' : 'roles'}
             </p>
           </div>
 
-          {teamNeeds.map((need) => (
+          {items.map((need) => (
             <article
               key={need.id}
               className="rounded-2xl border border-slate-200 bg-white p-5"

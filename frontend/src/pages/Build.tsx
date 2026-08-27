@@ -946,7 +946,10 @@ export function Build() {
               </p>
             </section>
 
-            <CollaborationNeeds />
+            <CollaborationNeeds
+                   items={draft.collaborationNeeds}
+                   onChange={(collaborationNeeds) =>
+                   updateDraft('collaborationNeeds', collaborationNeeds)}/>
 
             <div className="border-t border-slate-200 pt-6">
               <button
