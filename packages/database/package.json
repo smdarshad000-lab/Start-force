@@ -8,5 +8,13 @@
     "typecheck": "echo 'No types yet'",
     "lint": "echo 'No lint yet'",
     "test": "echo 'No tests yet'"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.10"
   }
 }
