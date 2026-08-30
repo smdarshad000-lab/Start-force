@@ -17,6 +17,10 @@ export const env = {
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
 };
 
-if (Number.isNaN(env.port) || env.port < 1 || env.port > 65535) {
+if (
+  Number.isNaN(env.port) ||
+  env.port < 1 ||
+  env.port > 65535
+) {
   throw new Error(`Invalid PORT value: ${process.env.PORT}`);
 }
