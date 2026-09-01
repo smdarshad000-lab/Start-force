@@ -37,26 +37,19 @@ export const ideas = pgTable('ideas', {
 
   stage: text('stage').notNull(),
 
-  problemStatement: text('problem_statement')
-    .notNull(),
+  problemStatement: text('problem_statement').notNull(),
 
-  targetUsers: text('target_users')
-    .notNull(),
+  targetUsers: text('target_users').notNull(),
 
-  currentSolution: text('current_solution')
-    .notNull(),
+  currentSolution: text('current_solution').notNull(),
 
-  problemEvidence: text('problem_evidence')
-    .notNull(),
+  problemEvidence: text('problem_evidence').notNull(),
 
-  solutionDescription: text('solution_description')
-    .notNull(),
+  solutionDescription: text('solution_description').notNull(),
 
-  howItWorks: text('how_it_works')
-    .notNull(),
+  howItWorks: text('how_it_works').notNull(),
 
-  uniqueValue: text('unique_value')
-    .notNull(),
+  uniqueValue: text('unique_value').notNull(),
 
   createdAt: timestamp('created_at', {
     withTimezone: true,
@@ -71,33 +64,30 @@ export const ideas = pgTable('ideas', {
     .notNull(),
 });
 
-export const researchItems = pgTable(
-  'research_items',
-  {
-    id: uuid('id').defaultRandom().primaryKey(),
+export const researchItems = pgTable('research_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
 
-    ideaId: uuid('idea_id')
-      .notNull()
-      .references(() => ideas.id, {
-        onDelete: 'cascade',
-      }),
+  ideaId: uuid('idea_id')
+    .notNull()
+    .references(() => ideas.id, {
+      onDelete: 'cascade',
+    }),
 
-    type: text('type').notNull(),
+  type: text('type').notNull(),
 
-    title: text('title').notNull(),
+  title: text('title').notNull(),
 
-    url: text('url'),
+  url: text('url'),
 
-    source: text('source'),
+  source: text('source'),
 
-    year: integer('year'),
+  year: integer('year'),
 
-    relevance: text('relevance').notNull(),
+  relevance: text('relevance').notNull(),
 
-    createdAt: timestamp('created_at', {
-      withTimezone: true,
-    })
-      .defaultNow()
-      .notNull(),
-  },
-);
+  createdAt: timestamp('created_at', {
+    withTimezone: true,
+  })
+    .defaultNow()
+    .notNull(),
+});
