@@ -7,13 +7,98 @@ import { expressMiddleware } from '@as-integrations/express5';
 
 import { env } from './config/env.js';
 import { db, pool } from './database.js';
+
 import {
   typeDefs,
   resolvers,
 } from './graphql/schema.js';
 
+import {
+  SESSION_COOKIE_NAME,
+} from './auth/session.js';
+
+function getSessionToken(
+  cookieHeader: string | undefined,
+): string | undefined {
+  if (!cookieHeader) {
+    return undefined;
+  }
+
+  const cookies =
+    cookieHeader.split(';');
+
+  for (const cookie of cookies) {
+    const separatorIndex =
+      cookie.indexOf('=');
+
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const name = cookie
+      .slice(0, separatorIndex)
+      .trim();
+
+    const value = cookie
+      .slice(separatorIndex + 1)
+      .trim();
+
+    if (name === SESSION_COOKIE_NAME) {
+      return decodeURIComponent(value);
+    }
+  }
+
+  return undefined;
+}
+
+function createSessionCookie(
+  token: string,
+): string {
+  const maxAge =
+    60 * 60 * 24 * 30;
+
+  const secure =
+    env.nodeEnv === 'production'
+      ? '; Secure'
+      : '';
+
+  return [
+    `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    `Max-Age=${maxAge}`,
+    secure.replace('; ', ''),
+  ]
+    .filter(Boolean)
+    .join('; ');
+}
+
+function createExpiredSessionCookie(): string {
+  const secure =
+    env.nodeEnv === 'production'
+      ? '; Secure'
+      : '';
+
+  return [
+    `${SESSION_COOKIE_NAME}=`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    'Max-Age=0',
+    'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+    secure.replace('; ', ''),
+  ]
+    .filter(Boolean)
+    .join('; ');
+}
+
 const logger = pino({
-  level: env.nodeEnv === 'production' ? 'info' : 'debug',
+  level:
+    env.nodeEnv === 'production'
+      ? 'info'
+      : 'debug',
+
   transport:
     env.nodeEnv !== 'production'
       ? {
@@ -31,15 +116,14 @@ const apollo = new ApolloServer({
 
 async function startServer() {
   try {
-    // Start Apollo GraphQL server
     await apollo.start();
 
-    logger.info('Apollo Server started');
+    logger.info(
+      'Apollo Server started',
+    );
 
-    // Security middleware
     app.use(helmet());
 
-    // CORS configuration
     app.use(
       cors({
         origin: env.corsOrigin,
@@ -47,47 +131,87 @@ async function startServer() {
       }),
     );
 
-    // Health endpoint
     app.get('/health', (_req, res) => {
       res.status(200).json({
         status: 'ok',
         service: 'start-force-api',
-        timestamp: new Date().toISOString(),
+        timestamp:
+          new Date().toISOString(),
       });
     });
 
-    // GraphQL endpoint
     app.use(
       '/graphql',
       express.json(),
       expressMiddleware(apollo, {
-        context: async () => ({
-          db,
-        }),
+        context: async ({
+          req,
+          res,
+        }) => {
+          const sessionToken =
+            getSessionToken(
+              req.headers.cookie,
+            );
+
+          const setSessionCookie = (
+            token: string,
+          ) => {
+            res.setHeader(
+              'Set-Cookie',
+              createSessionCookie(
+                token,
+              ),
+            );
+          };
+
+          const clearSessionCookie =
+            () => {
+              res.setHeader(
+                'Set-Cookie',
+                createExpiredSessionCookie(),
+              );
+            };
+
+          return {
+            db,
+            pool,
+            sessionToken,
+            setSessionCookie,
+            clearSessionCookie,
+          };
+        },
       }),
     );
 
-    // Start HTTP server
-    const server = app.listen(env.port, () => {
-      logger.info(
-        `Start-force API running on http://localhost:${env.port}`,
-      );
+    const server = app.listen(
+      env.port,
+      () => {
+        logger.info(
+          `Start-force API running on http://localhost:${env.port}`,
+        );
 
-      logger.info(
-        `GraphQL endpoint: http://localhost:${env.port}/graphql`,
-      );
-    });
+        logger.info(
+          `GraphQL endpoint: http://localhost:${env.port}/graphql`,
+        );
+      },
+    );
 
-    // Graceful shutdown
-    const shutdown = async (signal: string) => {
-      logger.info(`${signal} received. Shutting down...`);
+    const shutdown = async (
+      signal: string,
+    ) => {
+      logger.info(
+        `${signal} received. Shutting down...`,
+      );
 
       server.close(async () => {
         try {
           await apollo.stop();
           await pool.end();
 
-          logger.info('Start-force API shut down cleanly');
+          logger.info(
+            'Start-force API shut down cleanly',
+          );
+
           process.exit(0);
         } catch (error) {
           logger.error(
@@ -100,13 +224,19 @@ async function startServer() {
       });
     };
 
-    process.on('SIGINT', () => {
-      void shutdown('SIGINT');
-    });
+    process.on(
+      'SIGINT',
+      () => {
+        void shutdown('SIGINT');
+      },
+    );
 
-    process.on('SIGTERM', () => {
-      void shutdown('SIGTERM');
-    });
+    process.on(
+      'SIGTERM',
+      () => {
+        void shutdown('SIGTERM');
+      },
+    );
   } catch (error) {
     logger.fatal(
       error,
@@ -117,7 +247,7 @@ async function startServer() {
       await apollo.stop();
       await pool.end();
     } catch {
-      // Ignore cleanup errors during failed startup.
+      // Ignore cleanup errors.
     }
 
     process.exit(1);

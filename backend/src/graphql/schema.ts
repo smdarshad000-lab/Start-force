@@ -4,10 +4,27 @@ import {
   users,
 } from '@stat-force/database';
 
-type Database = ReturnType<typeof createDatabase>['db'];
+import type { pool } from '../database.js';
+
+import {
+  getCurrentUser,
+  loginUser,
+  logoutUser,
+  registerUser,
+} from '../auth/service.js';
+
+type Database = ReturnType<
+  typeof createDatabase
+>['db'];
+
+type DatabasePool = typeof pool;
 
 type GraphQLContext = {
   db: Database;
+  pool: DatabasePool;
+  sessionToken?: string;
+  setSessionCookie?: (token: string) => void;
+  clearSessionCookie?: () => void;
 };
 
 export const typeDefs = `
@@ -53,6 +70,11 @@ export const typeDefs = `
     name: String!
     email: String!
     createdAt: String!
+    updatedAt: String!
+  }
+
+  type AuthPayload {
+    user: User!
   }
 
   type Idea {
@@ -73,9 +95,15 @@ export const typeDefs = `
     updatedAt: String!
   }
 
-  input CreateUserInput {
+  input RegisterInput {
     name: String!
     email: String!
+    password: String!
+  }
+
+  input LoginInput {
+    email: String!
+    password: String!
   }
 
   input CreateIdeaInput {
@@ -96,13 +124,19 @@ export const typeDefs = `
   type Query {
     health: HealthStatus!
     databaseStatus: DatabaseStatus!
+
+    currentUser: User
+
     users: [User!]!
     ideas: [Idea!]!
     idea(id: ID!): Idea
   }
 
   type Mutation {
-    createUser(input: CreateUserInput!): User!
+    register(input: RegisterInput!): AuthPayload!
+    login(input: LoginInput!): AuthPayload!
+    logout: Boolean!
+
     createIdea(input: CreateIdeaInput!): Idea!
   }
 `;
@@ -120,19 +154,36 @@ export const resolvers = {
       _args: unknown,
       context: GraphQLContext,
     ) => {
-      const usersResult = await context.db.execute(
-        'SELECT COUNT(*)::int AS count FROM users',
-      );
+      const usersResult =
+        await context.pool.query(
+          'SELECT COUNT(*)::int AS count FROM users',
+        );
 
-      const ideasResult = await context.db.execute(
-        'SELECT COUNT(*)::int AS count FROM ideas',
-      );
+      const ideasResult =
+        await context.pool.query(
+          'SELECT COUNT(*)::int AS count FROM ideas',
+        );
 
       return {
         connected: true,
-        usersCount: Number(usersResult.rows[0].count),
-        ideasCount: Number(ideasResult.rows[0].count),
+        usersCount: Number(
+          usersResult.rows[0]?.count ?? 0,
+        ),
+        ideasCount: Number(
+          ideasResult.rows[0]?.count ?? 0,
+        ),
       };
+    },
+
+    currentUser: async (
+      _parent: unknown,
+      _args: unknown,
+      context: GraphQLContext,
+    ) => {
+      return getCurrentUser(
+        context.pool,
+        context.sessionToken,
+      );
     },
 
     users: async (
@@ -140,7 +191,9 @@ export const resolvers = {
       _args: unknown,
       context: GraphQLContext,
     ) => {
-      return context.db.select().from(users);
+      return context.db
+        .select()
+        .from(users);
     },
 
     ideas: async (
@@ -148,7 +201,9 @@ export const resolvers = {
       _args: unknown,
       context: GraphQLContext,
     ) => {
-      return context.db.select().from(ideas);
+      return context.db
+        .select()
+        .from(ideas);
     },
 
     idea: async (
@@ -156,62 +211,101 @@ export const resolvers = {
       args: { id: string },
       context: GraphQLContext,
     ) => {
-      const result = await context.db.execute(
-        'SELECT * FROM ideas WHERE id = $1 LIMIT 1',
-        [args.id],
-      );
+      const result =
+        await context.pool.query(
+          `
+            SELECT
+              id,
+              owner_id AS "ownerId",
+              title,
+              description,
+              category,
+              stage,
+              problem_statement AS "problemStatement",
+              target_users AS "targetUsers",
+              current_solution AS "currentSolution",
+              problem_evidence AS "problemEvidence",
+              solution_description AS "solutionDescription",
+              how_it_works AS "howItWorks",
+              unique_value AS "uniqueValue",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt"
+            FROM ideas
+            WHERE id = $1
+            LIMIT 1
+          `,
+          [args.id],
+        );
 
       return result.rows[0] ?? null;
     },
   },
 
   Mutation: {
-    createUser: async (
+    register: async (
       _parent: unknown,
       args: {
         input: {
           name: string;
           email: string;
+          password: string;
         };
       },
       context: GraphQLContext,
     ) => {
-      const name = args.input.name.trim();
-      const email = args.input.email.trim().toLowerCase();
-
-      if (name.length < 2) {
-        throw new Error(
-          'Name must contain at least 2 characters.',
+      const result =
+        await registerUser(
+          context.pool,
+          args.input,
         );
-      }
 
-      if (!email.includes('@')) {
-        throw new Error(
-          'A valid email address is required.',
-        );
-      }
-
-      const existingUser = await context.db.execute(
-        'SELECT id FROM users WHERE email = $1 LIMIT 1',
-        [email],
+      context.setSessionCookie?.(
+        result.session.token,
       );
 
-      if (existingUser.rows.length > 0) {
-        throw new Error(
-          'A user with this email already exists.',
-        );
-      }
+      return {
+        user: result.user,
+      };
+    },
 
-      const result = await context.db.execute(
-        `
-          INSERT INTO users (name, email)
-          VALUES ($1, $2)
-          RETURNING id, name, email, created_at AS "createdAt"
-        `,
-        [name, email],
+    login: async (
+      _parent: unknown,
+      args: {
+        input: {
+          email: string;
+          password: string;
+        };
+      },
+      context: GraphQLContext,
+    ) => {
+      const result =
+        await loginUser(
+          context.pool,
+          args.input,
+        );
+
+      context.setSessionCookie?.(
+        result.session.token,
       );
 
-      return result.rows[0];
+      return {
+        user: result.user,
+      };
+    },
+
+    logout: async (
+      _parent: unknown,
+      _args: unknown,
+      context: GraphQLContext,
+    ) => {
+      await logoutUser(
+        context.pool,
+        context.sessionToken,
+      );
+
+      context.clearSessionCookie?.();
+
+      return true;
     },
 
     createIdea: async (
@@ -246,25 +340,42 @@ export const resolvers = {
         title: input.title,
         description: input.description,
         category: input.category,
-        problemStatement: input.problemStatement,
-        targetUsers: input.targetUsers,
-        currentSolution: input.currentSolution,
-        problemEvidence: input.problemEvidence,
-        solutionDescription: input.solutionDescription,
-        howItWorks: input.howItWorks,
-        uniqueValue: input.uniqueValue,
+        problemStatement:
+          input.problemStatement,
+        targetUsers:
+          input.targetUsers,
+        currentSolution:
+          input.currentSolution,
+        problemEvidence:
+          input.problemEvidence,
+        solutionDescription:
+          input.solutionDescription,
+        howItWorks:
+          input.howItWorks,
+        uniqueValue:
+          input.uniqueValue,
       };
 
-      for (const [field, value] of Object.entries(fields)) {
+      for (const [field, value] of Object.entries(
+        fields,
+      )) {
         if (value.trim() === '') {
-          throw new Error(`${field} is required.`);
+          throw new Error(
+            `${field} is required.`,
+          );
         }
       }
 
-      const owner = await context.db.execute(
-        'SELECT id FROM users WHERE id = $1 LIMIT 1',
-        [input.ownerId],
-      );
+      const owner =
+        await context.pool.query(
+          `
+            SELECT id
+            FROM users
+            WHERE id = $1
+            LIMIT 1
+          `,
+          [input.ownerId],
+        );
 
       if (owner.rows.length === 0) {
         throw new Error(
@@ -272,77 +383,99 @@ export const resolvers = {
         );
       }
 
-      const result = await context.db.execute(
-        `
-          INSERT INTO ideas (
-            owner_id,
-            title,
-            description,
-            category,
-            stage,
-            problem_statement,
-            target_users,
-            current_solution,
-            problem_evidence,
-            solution_description,
-            how_it_works,
-            unique_value
-          )
-          VALUES (
-            $1, $2, $3, $4, $5, $6,
-            $7, $8, $9, $10, $11, $12
-          )
-          RETURNING
-            id,
-            owner_id AS "ownerId",
-            title,
-            description,
-            category,
-            stage,
-            problem_statement AS "problemStatement",
-            target_users AS "targetUsers",
-            current_solution AS "currentSolution",
-            problem_evidence AS "problemEvidence",
-            solution_description AS "solutionDescription",
-            how_it_works AS "howItWorks",
-            unique_value AS "uniqueValue",
-            created_at AS "createdAt",
-            updated_at AS "updatedAt"
-        `,
-        [
-          input.ownerId,
-          input.title.trim(),
-          input.description.trim(),
-          input.category.trim(),
-          input.stage,
-          input.problemStatement.trim(),
-          input.targetUsers.trim(),
-          input.currentSolution.trim(),
-          input.problemEvidence.trim(),
-          input.solutionDescription.trim(),
-          input.howItWorks.trim(),
-          input.uniqueValue.trim(),
-        ],
-      );
+      const result =
+        await context.pool.query(
+          `
+            INSERT INTO ideas (
+              owner_id,
+              title,
+              description,
+              category,
+              stage,
+              problem_statement,
+              target_users,
+              current_solution,
+              problem_evidence,
+              solution_description,
+              how_it_works,
+              unique_value
+            )
+            VALUES (
+              $1, $2, $3, $4, $5, $6,
+              $7, $8, $9, $10, $11, $12
+            )
+            RETURNING
+              id,
+              owner_id AS "ownerId",
+              title,
+              description,
+              category,
+              stage,
+              problem_statement AS "problemStatement",
+              target_users AS "targetUsers",
+              current_solution AS "currentSolution",
+              problem_evidence AS "problemEvidence",
+              solution_description AS "solutionDescription",
+              how_it_works AS "howItWorks",
+              unique_value AS "uniqueValue",
+              created_at AS "createdAt",
+              updated_at AS "updatedAt"
+          `,
+          [
+            input.ownerId,
+            input.title.trim(),
+            input.description.trim(),
+            input.category.trim(),
+            input.stage,
+            input.problemStatement.trim(),
+            input.targetUsers.trim(),
+            input.currentSolution.trim(),
+            input.problemEvidence.trim(),
+            input.solutionDescription.trim(),
+            input.howItWorks.trim(),
+            input.uniqueValue.trim(),
+          ],
+        );
 
       return result.rows[0];
     },
   },
 
   User: {
-    createdAt: (user: { createdAt: Date }) =>
+    createdAt: (
+      user: {
+        createdAt: Date | string;
+      },
+    ) =>
       user.createdAt instanceof Date
         ? user.createdAt.toISOString()
         : user.createdAt,
+
+    updatedAt: (
+      user: {
+        updatedAt: Date | string;
+      },
+    ) =>
+      user.updatedAt instanceof Date
+        ? user.updatedAt.toISOString()
+        : user.updatedAt,
   },
 
   Idea: {
-    createdAt: (idea: { createdAt: Date }) =>
+    createdAt: (
+      idea: {
+        createdAt: Date | string;
+      },
+    ) =>
       idea.createdAt instanceof Date
         ? idea.createdAt.toISOString()
         : idea.createdAt,
 
-    updatedAt: (idea: { updatedAt: Date }) =>
+    updatedAt: (
+      idea: {
+        updatedAt: Date | string;
+      },
+    ) =>
       idea.updatedAt instanceof Date
         ? idea.updatedAt.toISOString()
         : idea.updatedAt,
