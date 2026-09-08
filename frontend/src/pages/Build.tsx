@@ -1,5 +1,10 @@
 import { useState } from 'react';
 
+import {
+  gql,
+  useMutation,
+} from '@apollo/client';
+
 import { CollaborationNeeds } from '../components/build/CollaborationNeeds';
 import { FundingNeeds } from '../components/build/FundingNeeds';
 import { ResearchEvidence } from '../components/build/ResearchEvidence';
@@ -10,6 +15,30 @@ import {
   initialBuildDraft,
   type BuildDraft,
 } from '../types/build';
+
+import { useAuth } from '../context/AuthContext';
+
+const CREATE_IDEA_MUTATION = gql`
+  mutation CreateIdea($input: CreateIdeaInput!) {
+    createIdea(input: $input) {
+      id
+      ownerId
+      title
+      description
+      category
+      stage
+      problemStatement
+      targetUsers
+      currentSolution
+      problemEvidence
+      solutionDescription
+      howItWorks
+      uniqueValue
+      createdAt
+      updatedAt
+    }
+  }
+`;
 
 const stages = [
   'Idea',
@@ -60,14 +89,36 @@ const validationMethods = [
 ];
 
 export function Build() {
-  const [currentStage, setCurrentStage] = useState(1);
+  const { user } = useAuth();
 
-  // The entire Build form is stored in one draft.
-  const [draft, setDraft] = useState<BuildDraft>(initialBuildDraft);
+  const [currentStage, setCurrentStage] =
+    useState(1);
+
+  const [draft, setDraft] =
+    useState<BuildDraft>(
+      initialBuildDraft,
+    );
+
+  const [
+    createIdea,
+    { loading: saving },
+  ] = useMutation(
+    CREATE_IDEA_MUTATION,
+  );
+
+  const [saveError, setSaveError] =
+    useState('');
+
+  const [
+    saveSuccess,
+    setSaveSuccess,
+  ] = useState('');
+
+  const [savedIdeaId, setSavedIdeaId] =
+    useState<string | null>(null);
 
   const totalStages = stages.length;
 
-  // Stage 1 validation
   const isIdeaComplete =
     draft.title.trim().length >= 5 &&
     draft.description.trim().length >= 20 &&
@@ -81,7 +132,6 @@ export function Build() {
     draft.howItWorks.trim().length >= 30 &&
     draft.uniqueValue.trim().length >= 20;
 
-  // Technology validation
   const isTechnologyComplete =
     draft.technologyApproach.trim().length >= 30 &&
     draft.technologyDomain.trim().length >= 5 &&
@@ -89,19 +139,24 @@ export function Build() {
     draft.requiredTechnology.trim().length >= 20 &&
     draft.existingImplementation.trim().length >= 20;
 
-  // Validation section
   const isValidationComplete =
-    draft.validationMethod === 'Not validated yet' ||
-    (draft.validationMethod !== '' &&
+    draft.validationMethod ===
+      'Not validated yet' ||
+    (
+      draft.validationMethod !== '' &&
       draft.validationAudience.trim().length >= 5 &&
       draft.validationSampleSize.trim().length >= 1 &&
       draft.validationFindings.trim().length >= 20 &&
-      draft.validationEvidence.trim().length >= 20);
+      draft.validationEvidence.trim().length >= 20
+    );
 
   const isEvidenceComplete =
-    isTechnologyComplete && isValidationComplete;
+    isTechnologyComplete &&
+    isValidationComplete;
 
-  function updateDraft<K extends keyof BuildDraft>(
+  function updateDraft<
+    K extends keyof BuildDraft
+  >(
     field: K,
     value: BuildDraft[K],
   ) {
@@ -109,9 +164,15 @@ export function Build() {
       ...currentDraft,
       [field]: value,
     }));
+
+    setSaveError('');
+    setSaveSuccess('');
   }
 
   function goToNextStage() {
+    setSaveError('');
+    setSaveSuccess('');
+
     if (currentStage === 1) {
       if (!isIdeaComplete) {
         return;
@@ -131,14 +192,122 @@ export function Build() {
     }
 
     if (currentStage < totalStages) {
-      setCurrentStage((stage) => stage + 1);
+      setCurrentStage(
+        (stage) => stage + 1,
+      );
     }
   }
 
   function goToPreviousStage() {
+    setSaveError('');
+    setSaveSuccess('');
+
     if (currentStage > 1) {
-      setCurrentStage((stage) => stage - 1);
+      setCurrentStage(
+        (stage) => stage - 1,
+      );
     }
+  }
+
+  async function handleSaveDraft() {
+    setSaveError('');
+    setSaveSuccess('');
+    setSavedIdeaId(null);
+
+    if (!user) {
+      setSaveError(
+        'You must be signed in to save an idea.',
+      );
+      return;
+    }
+
+    if (saving) {
+      return;
+    }
+
+    try {
+      const result =
+        await createIdea({
+          variables: {
+            input: {
+              title: draft.title.trim(),
+              description:
+                draft.description.trim(),
+              category:
+                draft.category.trim(),
+              stage: draft.ideaStage,
+              problemStatement:
+                draft.problemStatement.trim(),
+              targetUsers:
+                draft.targetUsers.trim(),
+              currentSolution:
+                draft.currentSolution.trim(),
+              problemEvidence:
+                draft.problemEvidence.trim(),
+              solutionDescription:
+                draft.solutionDescription.trim(),
+              howItWorks:
+                draft.howItWorks.trim(),
+              uniqueValue:
+                draft.uniqueValue.trim(),
+            },
+          },
+        });
+
+      const createdIdea =
+        result.data?.createIdea;
+
+      if (!createdIdea) {
+        throw new Error(
+          'The server did not return the saved idea.',
+        );
+      }
+
+      setSavedIdeaId(
+        createdIdea.id,
+      );
+
+      setSaveSuccess(
+        'Your idea has been saved successfully.',
+      );
+    } catch (error) {
+      console.error(
+        'Failed to save idea:',
+        error,
+      );
+
+      if (
+        error instanceof Error
+      ) {
+        setSaveError(
+          error.message,
+        );
+      } else {
+        setSaveError(
+          'Unable to save your idea. Please try again.',
+        );
+      }
+    }
+  }
+
+  function handlePublish(
+    visibility:
+      | 'Public'
+      | 'Limited'
+      | 'Private',
+  ) {
+    /*
+     * Publishing will be connected to the database
+     * after draft persistence is verified.
+     */
+    console.log(
+      'Publish requested:',
+      {
+        visibility,
+        draft,
+        userId: user?.id,
+      },
+    );
   }
 
   return (
@@ -155,8 +324,9 @@ export function Build() {
           </h1>
 
           <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-            Tell the community what you are building, what problem you are
-            solving, and what you need to move forward.
+            Tell the community what you are
+            building, what problem you are solving,
+            and what you need to move forward.
           </p>
         </div>
 
@@ -165,7 +335,8 @@ export function Build() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-950">
-                Stage {currentStage} of {totalStages}
+                Stage {currentStage} of{' '}
+                {totalStages}
               </p>
 
               <p className="mt-1 text-sm text-slate-500">
@@ -174,7 +345,11 @@ export function Build() {
             </div>
 
             <p className="text-sm font-medium text-slate-500">
-              {Math.round((currentStage / totalStages) * 100)}%
+              {Math.round(
+                (currentStage / totalStages) *
+                  100,
+              )}
+              %
             </p>
           </div>
 
@@ -182,51 +357,72 @@ export function Build() {
             <div
               className="h-full rounded-full bg-emerald-500 transition-all duration-500"
               style={{
-                width: `${(currentStage / totalStages) * 100}%`,
+                width: `${
+                  (currentStage /
+                    totalStages) *
+                  100
+                }%`,
               }}
             />
           </div>
 
           <div className="mt-6 grid grid-cols-5 gap-2">
-            {stages.map((stage, index) => {
-              const stageNumber = index + 1;
-              const isCurrent = stageNumber === currentStage;
-              const isCompleted = stageNumber < currentStage;
+            {stages.map(
+              (
+                stage,
+                index,
+              ) => {
+                const stageNumber =
+                  index + 1;
 
-              return (
-                <div key={stage} className="text-center">
+                const isCurrent =
+                  stageNumber ===
+                  currentStage;
+
+                const isCompleted =
+                  stageNumber <
+                  currentStage;
+
+                return (
                   <div
-                    className={[
-                      'mx-auto flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold',
-                      isCurrent
-                        ? 'bg-slate-950 text-white'
-                        : isCompleted
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-slate-100 text-slate-400',
-                    ].join(' ')}
+                    key={stage}
+                    className="text-center"
                   >
-                    {isCompleted ? '✓' : stageNumber}
-                  </div>
+                    <div
+                      className={[
+                        'mx-auto flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold',
+                        isCurrent
+                          ? 'bg-slate-950 text-white'
+                          : isCompleted
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-slate-100 text-slate-400',
+                      ].join(' ')}
+                    >
+                      {isCompleted
+                        ? '✓'
+                        : stageNumber}
+                    </div>
 
-                  <p
-                    className={[
-                      'mt-2 text-xs font-medium',
-                      isCurrent
-                        ? 'text-slate-950'
-                        : isCompleted
-                          ? 'text-emerald-700'
-                          : 'text-slate-400',
-                    ].join(' ')}
-                  >
-                    {stage}
-                  </p>
-                </div>
-              );
-            })}
+                    <p
+                      className={[
+                        'mt-2 text-xs font-medium',
+                        isCurrent
+                          ? 'text-slate-950'
+                          : isCompleted
+                            ? 'text-emerald-700'
+                            : 'text-slate-400',
+                      ].join(' ')}
+                    >
+                      {stage}
+                    </p>
+                  </div>
+                );
+              },
+            )}
           </div>
         </div>
 
-        {/* Stage 1: Idea */}
+        {/* Stage 1 */}
         {currentStage === 1 && (
           <div className="mt-8 space-y-8">
             {/* Basic information */}
@@ -241,12 +437,12 @@ export function Build() {
                 </h2>
 
                 <p className="mt-3 leading-7 text-slate-600">
-                  Start by giving your idea a clear identity.
+                  Start by giving your idea a
+                  clear identity.
                 </p>
               </div>
 
               <div className="mt-8 space-y-6">
-                {/* Title */}
                 <div>
                   <label
                     htmlFor="idea-title"
@@ -256,7 +452,8 @@ export function Build() {
                   </label>
 
                   <p className="mt-1 text-lg text-slate-500">
-                    Give your idea a clear and memorable name.
+                    Give your idea a clear and
+                    memorable name.
                   </p>
 
                   <input
@@ -264,7 +461,10 @@ export function Build() {
                     type="text"
                     value={draft.title}
                     onChange={(event) =>
-                      updateDraft('title', event.target.value)
+                      updateDraft(
+                        'title',
+                        event.target.value,
+                      )
                     }
                     placeholder="e.g. AI Crop Disease Detection"
                     maxLength={100}
@@ -276,7 +476,6 @@ export function Build() {
                   </div>
                 </div>
 
-                {/* Description */}
                 <div>
                   <label
                     htmlFor="idea-description"
@@ -286,14 +485,20 @@ export function Build() {
                   </label>
 
                   <p className="mt-1 text-sm text-slate-500">
-                    Explain what your idea does and who it helps.
+                    Explain what your idea does
+                    and who it helps.
                   </p>
 
                   <textarea
                     id="idea-description"
-                    value={draft.description}
+                    value={
+                      draft.description
+                    }
                     onChange={(event) =>
-                      updateDraft('description', event.target.value)
+                      updateDraft(
+                        'description',
+                        event.target.value,
+                      )
                     }
                     placeholder="Describe what your idea does and who it helps..."
                     maxLength={500}
@@ -306,7 +511,6 @@ export function Build() {
                   </div>
                 </div>
 
-                {/* Category + Stage */}
                 <div className="grid gap-6 md:grid-cols-2">
                   <div>
                     <label
@@ -318,19 +522,31 @@ export function Build() {
 
                     <select
                       id="idea-category"
-                      value={draft.category}
+                      value={
+                        draft.category
+                      }
                       onChange={(event) =>
-                        updateDraft('category', event.target.value)
+                        updateDraft(
+                          'category',
+                          event.target.value,
+                        )
                       }
                       className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                     >
-                      <option value="">Select a category</option>
+                      <option value="">
+                        Select a category
+                      </option>
 
-                      {categories.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
+                      {categories.map(
+                        (item) => (
+                          <option
+                            key={item}
+                            value={item}
+                          >
+                            {item}
+                          </option>
+                        ),
+                      )}
                     </select>
                   </div>
 
@@ -344,19 +560,31 @@ export function Build() {
 
                     <select
                       id="idea-stage"
-                      value={draft.ideaStage}
+                      value={
+                        draft.ideaStage
+                      }
                       onChange={(event) =>
-                        updateDraft('ideaStage', event.target.value)
+                        updateDraft(
+                          'ideaStage',
+                          event.target.value,
+                        )
                       }
                       className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                     >
-                      <option value="">Select current stage</option>
+                      <option value="">
+                        Select current stage
+                      </option>
 
-                      {ideaStages.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
+                      {ideaStages.map(
+                        (item) => (
+                          <option
+                            key={item}
+                            value={item}
+                          >
+                            {item}
+                          </option>
+                        ),
+                      )}
                     </select>
                   </div>
                 </div>
@@ -386,19 +614,20 @@ export function Build() {
 
                   <textarea
                     id="problem-statement"
-                    value={draft.problemStatement}
+                    value={
+                      draft.problemStatement
+                    }
                     onChange={(event) =>
-                      updateDraft('problemStatement', event.target.value)
+                      updateDraft(
+                        'problemStatement',
+                        event.target.value,
+                      )
                     }
                     placeholder="Describe the problem clearly and specifically..."
                     maxLength={1000}
                     rows={6}
                     className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
-
-                  <div className="mt-2 text-right text-xs text-slate-400">
-                    {draft.problemStatement.length}/1000
-                  </div>
                 </div>
 
                 <div>
@@ -411,9 +640,14 @@ export function Build() {
 
                   <textarea
                     id="target-users"
-                    value={draft.targetUsers}
+                    value={
+                      draft.targetUsers
+                    }
                     onChange={(event) =>
-                      updateDraft('targetUsers', event.target.value)
+                      updateDraft(
+                        'targetUsers',
+                        event.target.value,
+                      )
                     }
                     placeholder="Identify the people, organizations, or communities affected..."
                     maxLength={500}
@@ -432,9 +666,14 @@ export function Build() {
 
                   <textarea
                     id="current-solution"
-                    value={draft.currentSolution}
+                    value={
+                      draft.currentSolution
+                    }
                     onChange={(event) =>
-                      updateDraft('currentSolution', event.target.value)
+                      updateDraft(
+                        'currentSolution',
+                        event.target.value,
+                      )
                     }
                     placeholder="Explain existing alternatives or processes..."
                     maxLength={750}
@@ -453,9 +692,14 @@ export function Build() {
 
                   <textarea
                     id="problem-evidence"
-                    value={draft.problemEvidence}
+                    value={
+                      draft.problemEvidence
+                    }
                     onChange={(event) =>
-                      updateDraft('problemEvidence', event.target.value)
+                      updateDraft(
+                        'problemEvidence',
+                        event.target.value,
+                      )
                     }
                     placeholder="Share interviews, observations, research, surveys, statistics..."
                     maxLength={1000}
@@ -489,9 +733,14 @@ export function Build() {
 
                   <textarea
                     id="solution-description"
-                    value={draft.solutionDescription}
+                    value={
+                      draft.solutionDescription
+                    }
                     onChange={(event) =>
-                      updateDraft('solutionDescription', event.target.value)
+                      updateDraft(
+                        'solutionDescription',
+                        event.target.value,
+                      )
                     }
                     placeholder="Describe the product, service, system, or approach..."
                     maxLength={1200}
@@ -510,9 +759,14 @@ export function Build() {
 
                   <textarea
                     id="how-it-works"
-                    value={draft.howItWorks}
+                    value={
+                      draft.howItWorks
+                    }
                     onChange={(event) =>
-                      updateDraft('howItWorks', event.target.value)
+                      updateDraft(
+                        'howItWorks',
+                        event.target.value,
+                      )
                     }
                     placeholder="Describe the main workflow or mechanism..."
                     maxLength={1200}
@@ -531,9 +785,14 @@ export function Build() {
 
                   <textarea
                     id="unique-value"
-                    value={draft.uniqueValue}
+                    value={
+                      draft.uniqueValue
+                    }
                     onChange={(event) =>
-                      updateDraft('uniqueValue', event.target.value)
+                      updateDraft(
+                        'uniqueValue',
+                        event.target.value,
+                      )
                     }
                     placeholder="Explain your key advantage or differentiator..."
                     maxLength={800}
@@ -548,7 +807,9 @@ export function Build() {
               <button
                 type="button"
                 onClick={goToNextStage}
-                disabled={!isIdeaComplete}
+                disabled={
+                  !isIdeaComplete
+                }
                 className={[
                   'rounded-xl px-6 py-3.5 text-sm font-semibold transition',
                   isIdeaComplete
@@ -562,7 +823,7 @@ export function Build() {
           </div>
         )}
 
-        {/* Stage 2: Evidence */}
+        {/* Stage 2 */}
         {currentStage === 2 && (
           <div className="mt-8 space-y-8">
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -575,9 +836,10 @@ export function Build() {
               </h2>
 
               <p className="mt-4 max-w-3xl leading-7 text-slate-600">
-                Add the technical foundation, research, and real-world
-                validation that help other people understand and evaluate your
-                idea.
+                Add the technical foundation,
+                research, and real-world validation
+                that help other people understand and
+                evaluate your idea.
               </p>
             </section>
 
@@ -593,8 +855,9 @@ export function Build() {
                 </h2>
 
                 <p className="mt-3 leading-7 text-slate-600">
-                  This works for software, engineering, biotechnology,
-                  climate research, materials science, and other technical
+                  This works for software, engineering,
+                  biotechnology, climate research,
+                  materials science, and other technical
                   projects.
                 </p>
               </div>
@@ -610,19 +873,20 @@ export function Build() {
 
                   <textarea
                     id="technology-approach"
-                    value={draft.technologyApproach}
+                    value={
+                      draft.technologyApproach
+                    }
                     onChange={(event) =>
-                      updateDraft('technologyApproach', event.target.value)
+                      updateDraft(
+                        'technologyApproach',
+                        event.target.value,
+                      )
                     }
                     placeholder="Example: A computer-vision model trained on crop disease images..."
                     maxLength={1200}
                     rows={7}
                     className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
-
-                  <div className="mt-2 text-right text-xs text-slate-400">
-                    {draft.technologyApproach.length}/1200
-                  </div>
                 </div>
 
                 <div>
@@ -636,18 +900,19 @@ export function Build() {
                   <input
                     id="technology-domain"
                     type="text"
-                    value={draft.technologyDomain}
+                    value={
+                      draft.technologyDomain
+                    }
                     onChange={(event) =>
-                      updateDraft('technologyDomain', event.target.value)
+                      updateDraft(
+                        'technologyDomain',
+                        event.target.value,
+                      )
                     }
                     placeholder="e.g. Computer Vision, Biotechnology, Materials Science"
                     maxLength={150}
                     className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
-
-                  <div className="mt-2 text-right text-xs text-slate-400">
-                    {draft.technologyDomain.length}/150
-                  </div>
                 </div>
 
                 <div>
@@ -660,9 +925,14 @@ export function Build() {
 
                   <select
                     id="technology-readiness"
-                    value={draft.technologyReadiness}
+                    value={
+                      draft.technologyReadiness
+                    }
                     onChange={(event) =>
-                      updateDraft('technologyReadiness', event.target.value)
+                      updateDraft(
+                        'technologyReadiness',
+                        event.target.value,
+                      )
                     }
                     className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   >
@@ -670,11 +940,16 @@ export function Build() {
                       Select current technology readiness
                     </option>
 
-                    {technologyReadinessLevels.map((level) => (
-                      <option key={level} value={level}>
-                        {level}
-                      </option>
-                    ))}
+                    {technologyReadinessLevels.map(
+                      (level) => (
+                        <option
+                          key={level}
+                          value={level}
+                        >
+                          {level}
+                        </option>
+                      ),
+                    )}
                   </select>
                 </div>
 
@@ -688,19 +963,20 @@ export function Build() {
 
                   <textarea
                     id="required-technology"
-                    value={draft.requiredTechnology}
+                    value={
+                      draft.requiredTechnology
+                    }
                     onChange={(event) =>
-                      updateDraft('requiredTechnology', event.target.value)
+                      updateDraft(
+                        'requiredTechnology',
+                        event.target.value,
+                      )
                     }
                     placeholder="Example: GPU compute, ML engineer, agricultural dataset, field testing equipment..."
                     maxLength={1000}
                     rows={6}
                     className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
-
-                  <div className="mt-2 text-right text-xs text-slate-400">
-                    {draft.requiredTechnology.length}/1000
-                  </div>
                 </div>
 
                 <div>
@@ -713,7 +989,9 @@ export function Build() {
 
                   <textarea
                     id="existing-implementation"
-                    value={draft.existingImplementation}
+                    value={
+                      draft.existingImplementation
+                    }
                     onChange={(event) =>
                       updateDraft(
                         'existingImplementation',
@@ -725,19 +1003,17 @@ export function Build() {
                     rows={6}
                     className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
-
-                  <div className="mt-2 text-right text-xs text-slate-400">
-                    {draft.existingImplementation.length}/1000
-                  </div>
                 </div>
               </div>
             </section>
 
-            {/* Research */}
             <ResearchEvidence
               items={draft.research}
               onChange={(research) =>
-                updateDraft('research', research)
+                updateDraft(
+                  'research',
+                  research,
+                )
               }
             />
 
@@ -753,9 +1029,10 @@ export function Build() {
                 </h2>
 
                 <p className="mt-3 leading-7 text-slate-600">
-                  Validation helps people understand whether the problem and
-                  solution have been tested with real users, experiments, or
-                  other evidence.
+                  Validation helps people understand
+                  whether the problem and solution have
+                  been tested with real users,
+                  experiments, or other evidence.
                 </p>
               </div>
 
@@ -770,24 +1047,38 @@ export function Build() {
 
                   <select
                     id="validation-method"
-                    value={draft.validationMethod}
+                    value={
+                      draft.validationMethod
+                    }
                     onChange={(event) =>
-                      updateDraft('validationMethod', event.target.value)
+                      updateDraft(
+                        'validationMethod',
+                        event.target.value,
+                      )
                     }
                     className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   >
-                    <option value="">Select validation method</option>
+                    <option value="">
+                      Select validation method
+                    </option>
 
-                    {validationMethods.map((method) => (
-                      <option key={method} value={method}>
-                        {method}
-                      </option>
-                    ))}
+                    {validationMethods.map(
+                      (method) => (
+                        <option
+                          key={method}
+                          value={method}
+                        >
+                          {method}
+                        </option>
+                      ),
+                    )}
                   </select>
                 </div>
 
-                {draft.validationMethod !== '' &&
-                  draft.validationMethod !== 'Not validated yet' && (
+                {draft.validationMethod !==
+                  '' &&
+                  draft.validationMethod !==
+                    'Not validated yet' && (
                     <>
                       <div>
                         <label
@@ -800,7 +1091,9 @@ export function Build() {
                         <input
                           id="validation-audience"
                           type="text"
-                          value={draft.validationAudience}
+                          value={
+                            draft.validationAudience
+                          }
                           onChange={(event) =>
                             updateDraft(
                               'validationAudience',
@@ -824,7 +1117,9 @@ export function Build() {
                           id="validation-sample-size"
                           type="number"
                           min="1"
-                          value={draft.validationSampleSize}
+                          value={
+                            draft.validationSampleSize
+                          }
                           onChange={(event) =>
                             updateDraft(
                               'validationSampleSize',
@@ -846,7 +1141,9 @@ export function Build() {
 
                         <textarea
                           id="validation-findings"
-                          value={draft.validationFindings}
+                          value={
+                            draft.validationFindings
+                          }
                           onChange={(event) =>
                             updateDraft(
                               'validationFindings',
@@ -858,23 +1155,21 @@ export function Build() {
                           rows={6}
                           className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                         />
-
-                        <div className="mt-2 text-right text-xs text-slate-400">
-                          {draft.validationFindings.length}/1200
-                        </div>
                       </div>
 
                       <div>
                         <label
                           htmlFor="validation-evidence"
-                          className="block text-lg font-semibold text-slate-950"
+                          className="block text-sm font-semibold text-slate-950"
                         >
                           What evidence supports the result?
                         </label>
 
                         <textarea
                           id="validation-evidence"
-                          value={draft.validationEvidence}
+                          value={
+                            draft.validationEvidence
+                          }
                           onChange={(event) =>
                             updateDraft(
                               'validationEvidence',
@@ -886,18 +1181,17 @@ export function Build() {
                           rows={6}
                           className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                         />
-
-                        <div className="mt-2 text-right text-xs text-slate-400">
-                          {draft.validationEvidence.length}/1200
-                        </div>
                       </div>
                     </>
                   )}
 
-                {draft.validationMethod === 'Not validated yet' && (
+                {draft.validationMethod ===
+                  'Not validated yet' && (
                   <div className="rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-800">
-                    That&apos;s okay. You can publish an early idea without
-                    validation and add validation evidence later.
+                    That&apos;s okay. You can
+                    publish an early idea without
+                    validation and add validation
+                    evidence later.
                   </div>
                 )}
               </div>
@@ -906,7 +1200,9 @@ export function Build() {
             <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-between">
               <button
                 type="button"
-                onClick={goToPreviousStage}
+                onClick={
+                  goToPreviousStage
+                }
                 className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
               >
                 ← Back to Idea
@@ -915,7 +1211,9 @@ export function Build() {
               <button
                 type="button"
                 onClick={goToNextStage}
-                disabled={!isEvidenceComplete}
+                disabled={
+                  !isEvidenceComplete
+                }
                 className={[
                   'rounded-xl px-6 py-3.5 text-sm font-semibold transition',
                   isEvidenceComplete
@@ -929,7 +1227,7 @@ export function Build() {
           </div>
         )}
 
-        {/* Stage 3: Collaboration */}
+        {/* Stage 3 */}
         {currentStage === 3 && (
           <div className="mt-8 space-y-8">
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -942,29 +1240,50 @@ export function Build() {
               </h2>
 
               <p className="mt-4 leading-7 text-slate-600">
-                Tell the community which roles, skills, and collaborators would
-                help you move this idea forward.
+                Tell the community which roles,
+                skills, and collaborators would help
+                you move this idea forward.
               </p>
             </section>
 
             <CollaborationNeeds
-                   items={draft.collaborationNeeds}
-                   onChange={(collaborationNeeds) =>
-                   updateDraft('collaborationNeeds', collaborationNeeds)}/>
+              items={
+                draft.collaborationNeeds
+              }
+              onChange={
+                (
+                  collaborationNeeds,
+                ) =>
+                  updateDraft(
+                    'collaborationNeeds',
+                    collaborationNeeds,
+                  )
+              }
+            />
 
             <div className="border-t border-slate-200 pt-6">
               <button
                 type="button"
-                onClick={goToPreviousStage}
+                onClick={
+                  goToPreviousStage
+                }
                 className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
               >
                 ← Back to Evidence
+              </button>
+
+              <button
+                type="button"
+                onClick={goToNextStage}
+                className="ml-3 rounded-xl bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Continue to Funding →
               </button>
             </div>
           </div>
         )}
 
-        {/* Stage 4: Funding */}
+        {/* Stage 4 */}
         {currentStage === 4 && (
           <div className="mt-8 space-y-8">
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -977,56 +1296,105 @@ export function Build() {
               </h2>
 
               <p className="mt-4 max-w-3xl leading-7 text-slate-600">
-                Funding is only one part of building something new. Tell people
-                what financial support and other resources could help your idea
+                Funding is only one part of
+                building something new. Tell the
+                community what financial support and
+                other resources could help your idea
                 progress.
               </p>
             </section>
 
             <FundingNeeds
-                   funding={draft.funding}
-                    onChange={(funding) =>
-                    updateDraft('funding', funding)}/>
+              funding={draft.funding}
+              onChange={(funding) =>
+                updateDraft(
+                  'funding',
+                  funding,
+                )
+              }
+            />
 
             <div className="border-t border-slate-200 pt-6">
               <button
                 type="button"
-                onClick={goToPreviousStage}
+                onClick={
+                  goToPreviousStage
+                }
                 className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
               >
                 ← Back to Collaboration
+              </button>
+
+              <button
+                type="button"
+                onClick={goToNextStage}
+                className="ml-3 rounded-xl bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Review Idea →
               </button>
             </div>
           </div>
         )}
 
-        {/* Stage 5: Review */}
-         {currentStage === 5 && (
-           <div className="mt-8">
-             <ReviewStage
-                  draft={draft}
-                  onSaveDraft={() => {
-                  console.log('Draft saved:', draft);
-      }}
-            onPublish={(visibility) => {
-            console.log('Publishing idea:', {
-            draft,
-            visibility,
-           });
-        }}
-      />
+        {/* Stage 5 */}
+        {currentStage === 5 && (
+          <div className="mt-8">
+            {saveError && (
+              <div
+                role="alert"
+                className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+              >
+                {saveError}
+              </div>
+            )}
 
-           <div className="mt-6 border-t border-slate-200 pt-6">
-          <button
-               type="button"
-               onClick={goToPreviousStage}
-               className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50">
-              ← Back to Funding
-           </button>
-    </div>
-  </div>
-)}
-            </section>
-        </PageContainer>
+            {saveSuccess && (
+              <div
+                role="status"
+                className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+              >
+                <div className="font-semibold">
+                  {saveSuccess}
+                </div>
+
+                {savedIdeaId && (
+                  <div className="mt-1 text-xs text-emerald-600">
+                    Idea ID: {savedIdeaId}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!user && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                You are currently signed out.
+                Sign in before saving your idea.
+              </div>
+            )}
+
+            <ReviewStage
+              draft={draft}
+              saving={saving}
+              onSaveDraft={() => {
+                void handleSaveDraft();
+              }}
+              onPublish={handlePublish}
+            />
+
+            <div className="mt-6 border-t border-slate-200 pt-6">
+              <button
+                type="button"
+                onClick={
+                  goToPreviousStage
+                }
+                className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
+              >
+                ← Back to Funding
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+    </PageContainer>
   );
-}                   
+}

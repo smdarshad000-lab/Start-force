@@ -27,6 +27,14 @@ type GraphQLContext = {
   clearSessionCookie?: () => void;
 };
 
+type IdeaStage =
+  | 'IDEA'
+  | 'RESEARCH'
+  | 'PROTOTYPE'
+  | 'MVP'
+  | 'TRACTION'
+  | 'GROWTH';
+
 export const typeDefs = `
   enum IdeaStage {
     IDEA
@@ -107,7 +115,6 @@ export const typeDefs = `
   }
 
   input CreateIdeaInput {
-    ownerId: ID!
     title: String!
     description: String!
     category: String!
@@ -123,18 +130,23 @@ export const typeDefs = `
 
   type Query {
     health: HealthStatus!
+
     databaseStatus: DatabaseStatus!
 
     currentUser: User
 
     users: [User!]!
+
     ideas: [Idea!]!
+
     idea(id: ID!): Idea
   }
 
   type Mutation {
     register(input: RegisterInput!): AuthPayload!
+
     login(input: LoginInput!): AuthPayload!
+
     logout: Boolean!
 
     createIdea(input: CreateIdeaInput!): Idea!
@@ -312,17 +324,10 @@ export const resolvers = {
       _parent: unknown,
       args: {
         input: {
-          ownerId: string;
           title: string;
           description: string;
           category: string;
-          stage:
-            | 'IDEA'
-            | 'RESEARCH'
-            | 'PROTOTYPE'
-            | 'MVP'
-            | 'TRACTION'
-            | 'GROWTH';
+          stage: IdeaStage;
           problemStatement: string;
           targetUsers: string;
           currentSolution: string;
@@ -334,6 +339,22 @@ export const resolvers = {
       },
       context: GraphQLContext,
     ) => {
+      /*
+       * The owner is determined by the authenticated
+       * session. The client does NOT provide ownerId.
+       */
+      const currentUser =
+        await getCurrentUser(
+          context.pool,
+          context.sessionToken,
+        );
+
+      if (!currentUser) {
+        throw new Error(
+          'You must be signed in to create an idea.',
+        );
+      }
+
       const input = args.input;
 
       const fields = {
@@ -366,23 +387,6 @@ export const resolvers = {
         }
       }
 
-      const owner =
-        await context.pool.query(
-          `
-            SELECT id
-            FROM users
-            WHERE id = $1
-            LIMIT 1
-          `,
-          [input.ownerId],
-        );
-
-      if (owner.rows.length === 0) {
-        throw new Error(
-          'The specified owner does not exist.',
-        );
-      }
-
       const result =
         await context.pool.query(
           `
@@ -401,8 +405,18 @@ export const resolvers = {
               unique_value
             )
             VALUES (
-              $1, $2, $3, $4, $5, $6,
-              $7, $8, $9, $10, $11, $12
+              $1,
+              $2,
+              $3,
+              $4,
+              $5,
+              $6,
+              $7,
+              $8,
+              $9,
+              $10,
+              $11,
+              $12
             )
             RETURNING
               id,
@@ -422,7 +436,7 @@ export const resolvers = {
               updated_at AS "updatedAt"
           `,
           [
-            input.ownerId,
+            currentUser.id,
             input.title.trim(),
             input.description.trim(),
             input.category.trim(),
