@@ -59,6 +59,30 @@ export const ideas = pgTable('ideas', {
       onDelete: 'cascade',
     }),
 
+  /*
+   * DRAFT:
+   * The user can keep working on the idea.
+   *
+   * PUBLISHED:
+   * The idea has been published to Start-force.
+   */
+  status: text('status')
+    .notNull()
+    .default('DRAFT'),
+
+  /*
+   * Stores the last Build step reached by the user.
+   *
+   * 1 = Idea
+   * 2 = Evidence
+   * 3 = Collaboration
+   * 4 = Funding
+   * 5 = Review
+   */
+  currentStep: integer('current_step')
+    .notNull()
+    .default(1),
+
   title: text('title').notNull(),
 
   description: text('description').notNull(),

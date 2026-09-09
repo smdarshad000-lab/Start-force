@@ -1,9 +1,3 @@
-import {
-  createDatabase,
-  ideas,
-  users,
-} from '@stat-force/database';
-
 import type { pool } from '../database.js';
 
 import {
@@ -13,14 +7,9 @@ import {
   registerUser,
 } from '../auth/service.js';
 
-type Database = ReturnType<
-  typeof createDatabase
->['db'];
-
 type DatabasePool = typeof pool;
 
 type GraphQLContext = {
-  db: Database;
   pool: DatabasePool;
   sessionToken?: string;
   setSessionCookie?: (token: string) => void;
@@ -28,37 +17,69 @@ type GraphQLContext = {
 };
 
 type IdeaStage =
-  | 'IDEA'
-  | 'RESEARCH'
-  | 'PROTOTYPE'
+  | 'Research'
+  | 'Prototype'
   | 'MVP'
-  | 'TRACTION'
-  | 'GROWTH';
+  | 'Startup';
 
+type SaveDraftInput = {
+  title: string;
+  description: string;
+  category: string;
+  stage: IdeaStage;
+  problemStatement: string;
+  targetUsers: string;
+  currentSolution: string;
+  problemEvidence: string;
+  solutionDescription: string;
+  howItWorks: string;
+  uniqueValue: string;
+  currentStep: number;
+};
+
+function formatDate(value: unknown): string {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  return String(value);
+}
+
+function validateStep(value: number): number {
+  if (
+    !Number.isInteger(value) ||
+    value < 1 ||
+    value > 5
+  ) {
+    return 1;
+  }
+
+  return value;
+}
+
+/*
+ * IMPORTANT:
+ * These are explicitly exported because both
+ * server.ts and schema.test.ts import them.
+ */
 export const typeDefs = `
+
   enum IdeaStage {
-    IDEA
-    RESEARCH
-    PROTOTYPE
+    Research
+    Prototype
     MVP
-    TRACTION
-    GROWTH
+    Startup
+  }
+
+  enum IdeaStatus {
+    DRAFT
+    PUBLISHED
   }
 
   enum Visibility {
-    PUBLIC
-    VERIFIED
-    TRUSTED
-    CONFIDENTIAL
-  }
-
-  type IdeaMetricSnapshot {
-    innovationScore: Float!
-    validationScore: Float!
-    researchStrength: Float!
-    teamStrength: Float!
-    marketPotential: Float!
-    evidenceConfidence: Float!
+    Public
+    Limited
+    Private
   }
 
   type HealthStatus {
@@ -88,17 +109,23 @@ export const typeDefs = `
   type Idea {
     id: ID!
     ownerId: ID!
+    status: IdeaStatus!
+    currentStep: Int!
+
     title: String!
     description: String!
     category: String!
     stage: IdeaStage!
+
     problemStatement: String!
     targetUsers: String!
     currentSolution: String!
     problemEvidence: String!
+
     solutionDescription: String!
     howItWorks: String!
     uniqueValue: String!
+
     createdAt: String!
     updatedAt: String!
   }
@@ -114,18 +141,22 @@ export const typeDefs = `
     password: String!
   }
 
-  input CreateIdeaInput {
+  input SaveDraftInput {
     title: String!
     description: String!
     category: String!
     stage: IdeaStage!
+
     problemStatement: String!
     targetUsers: String!
     currentSolution: String!
     problemEvidence: String!
+
     solutionDescription: String!
     howItWorks: String!
     uniqueValue: String!
+
+    currentStep: Int!
   }
 
   type Query {
@@ -134,6 +165,8 @@ export const typeDefs = `
     databaseStatus: DatabaseStatus!
 
     currentUser: User
+
+    myDraft: Idea
 
     users: [User!]!
 
@@ -149,10 +182,16 @@ export const typeDefs = `
 
     logout: Boolean!
 
-    createIdea(input: CreateIdeaInput!): Idea!
+    saveDraft(input: SaveDraftInput!): Idea!
   }
 `;
 
+/*
+ * GraphQL resolvers.
+ *
+ * This object is also explicitly exported because
+ * server.ts and schema.test.ts import it.
+ */
 export const resolvers = {
   Query: {
     health: () => ({
@@ -198,14 +237,82 @@ export const resolvers = {
       );
     },
 
+    myDraft: async (
+      _parent: unknown,
+      _args: unknown,
+      context: GraphQLContext,
+    ) => {
+      const currentUser =
+        await getCurrentUser(
+          context.pool,
+          context.sessionToken,
+        );
+
+      if (!currentUser) {
+        return null;
+      }
+
+      const result =
+        await context.pool.query(
+          `
+            SELECT
+              id,
+              owner_id AS "ownerId",
+              status,
+              current_step AS "currentStep",
+
+              title,
+              description,
+              category,
+              stage,
+
+              problem_statement AS "problemStatement",
+              target_users AS "targetUsers",
+              current_solution AS "currentSolution",
+              problem_evidence AS "problemEvidence",
+
+              solution_description AS "solutionDescription",
+              how_it_works AS "howItWorks",
+              unique_value AS "uniqueValue",
+
+              created_at AS "createdAt",
+              updated_at AS "updatedAt"
+
+            FROM ideas
+
+            WHERE owner_id = $1
+              AND status = 'DRAFT'
+
+            ORDER BY updated_at DESC
+
+            LIMIT 1
+          `,
+          [currentUser.id],
+        );
+
+      return result.rows[0] ?? null;
+    },
+
     users: async (
       _parent: unknown,
       _args: unknown,
       context: GraphQLContext,
     ) => {
-      return context.db
-        .select()
-        .from(users);
+      const result =
+        await context.pool.query(
+          `
+            SELECT
+              id,
+              name,
+              email,
+              created_at AS "createdAt",
+              updated_at AS "updatedAt"
+            FROM users
+            ORDER BY created_at ASC
+          `,
+        );
+
+      return result.rows;
     },
 
     ideas: async (
@@ -213,9 +320,39 @@ export const resolvers = {
       _args: unknown,
       context: GraphQLContext,
     ) => {
-      return context.db
-        .select()
-        .from(ideas);
+      const result =
+        await context.pool.query(
+          `
+            SELECT
+              id,
+              owner_id AS "ownerId",
+              status,
+              current_step AS "currentStep",
+
+              title,
+              description,
+              category,
+              stage,
+
+              problem_statement AS "problemStatement",
+              target_users AS "targetUsers",
+              current_solution AS "currentSolution",
+              problem_evidence AS "problemEvidence",
+
+              solution_description AS "solutionDescription",
+              how_it_works AS "howItWorks",
+              unique_value AS "uniqueValue",
+
+              created_at AS "createdAt",
+              updated_at AS "updatedAt"
+
+            FROM ideas
+
+            ORDER BY created_at DESC
+          `,
+        );
+
+      return result.rows;
     },
 
     idea: async (
@@ -229,21 +366,30 @@ export const resolvers = {
             SELECT
               id,
               owner_id AS "ownerId",
+              status,
+              current_step AS "currentStep",
+
               title,
               description,
               category,
               stage,
+
               problem_statement AS "problemStatement",
               target_users AS "targetUsers",
               current_solution AS "currentSolution",
               problem_evidence AS "problemEvidence",
+
               solution_description AS "solutionDescription",
               how_it_works AS "howItWorks",
               unique_value AS "uniqueValue",
+
               created_at AS "createdAt",
               updated_at AS "updatedAt"
+
             FROM ideas
+
             WHERE id = $1
+
             LIMIT 1
           `,
           [args.id],
@@ -320,28 +466,18 @@ export const resolvers = {
       return true;
     },
 
-    createIdea: async (
+    saveDraft: async (
       _parent: unknown,
       args: {
-        input: {
-          title: string;
-          description: string;
-          category: string;
-          stage: IdeaStage;
-          problemStatement: string;
-          targetUsers: string;
-          currentSolution: string;
-          problemEvidence: string;
-          solutionDescription: string;
-          howItWorks: string;
-          uniqueValue: string;
-        };
+        input: SaveDraftInput;
       },
       context: GraphQLContext,
     ) => {
       /*
-       * The owner is determined by the authenticated
-       * session. The client does NOT provide ownerId.
+       * Never trust ownerId from the frontend.
+       *
+       * The owner always comes from the
+       * authenticated session.
        */
       const currentUser =
         await getCurrentUser(
@@ -351,105 +487,220 @@ export const resolvers = {
 
       if (!currentUser) {
         throw new Error(
-          'You must be signed in to create an idea.',
+          'You must be signed in to save a draft.',
         );
       }
 
       const input = args.input;
 
-      const fields = {
-        title: input.title,
-        description: input.description,
-        category: input.category,
-        problemStatement:
-          input.problemStatement,
-        targetUsers:
-          input.targetUsers,
-        currentSolution:
-          input.currentSolution,
-        problemEvidence:
-          input.problemEvidence,
-        solutionDescription:
-          input.solutionDescription,
-        howItWorks:
-          input.howItWorks,
-        uniqueValue:
-          input.uniqueValue,
-      };
+      const currentStep =
+        validateStep(
+          input.currentStep,
+        );
 
-      for (const [field, value] of Object.entries(
-        fields,
-      )) {
-        if (value.trim() === '') {
+      /*
+       * Check whether this user already
+       * has a draft.
+       */
+      const existing =
+        await context.pool.query(
+          `
+            SELECT id
+
+            FROM ideas
+
+            WHERE owner_id = $1
+              AND status = 'DRAFT'
+
+            ORDER BY updated_at DESC
+
+            LIMIT 1
+          `,
+          [currentUser.id],
+        );
+
+      /*
+       * Existing draft:
+       * update the same row.
+       */
+      if (existing.rows[0]?.id) {
+        const result =
+          await context.pool.query(
+            `
+              UPDATE ideas
+
+              SET
+                current_step = $1,
+
+                title = $2,
+                description = $3,
+                category = $4,
+                stage = $5,
+
+                problem_statement = $6,
+                target_users = $7,
+                current_solution = $8,
+                problem_evidence = $9,
+
+                solution_description = $10,
+                how_it_works = $11,
+                unique_value = $12,
+
+                updated_at = NOW()
+
+              WHERE id = $13
+                AND owner_id = $14
+                AND status = 'DRAFT'
+
+              RETURNING
+                id,
+                owner_id AS "ownerId",
+                status,
+                current_step AS "currentStep",
+
+                title,
+                description,
+                category,
+                stage,
+
+                problem_statement AS "problemStatement",
+                target_users AS "targetUsers",
+                current_solution AS "currentSolution",
+                problem_evidence AS "problemEvidence",
+
+                solution_description AS "solutionDescription",
+                how_it_works AS "howItWorks",
+                unique_value AS "uniqueValue",
+
+                created_at AS "createdAt",
+                updated_at AS "updatedAt"
+            `,
+            [
+              currentStep,
+
+              input.title.trim(),
+              input.description.trim(),
+              input.category.trim(),
+              input.stage,
+
+              input.problemStatement.trim(),
+              input.targetUsers.trim(),
+              input.currentSolution.trim(),
+              input.problemEvidence.trim(),
+
+              input.solutionDescription.trim(),
+              input.howItWorks.trim(),
+              input.uniqueValue.trim(),
+
+              existing.rows[0].id,
+              currentUser.id,
+            ],
+          );
+
+        if (!result.rows[0]) {
           throw new Error(
-            `${field} is required.`,
+            'Unable to update your draft.',
           );
         }
+
+        return result.rows[0];
       }
 
+      /*
+       * No existing draft:
+       * create one.
+       */
       const result =
         await context.pool.query(
           `
             INSERT INTO ideas (
               owner_id,
+              status,
+              current_step,
+
               title,
               description,
               category,
               stage,
+
               problem_statement,
               target_users,
               current_solution,
               problem_evidence,
+
               solution_description,
               how_it_works,
               unique_value
             )
+
             VALUES (
               $1,
+              'DRAFT',
               $2,
+
               $3,
               $4,
               $5,
               $6,
+
               $7,
               $8,
               $9,
               $10,
+
               $11,
-              $12
+              $12,
+              $13
             )
+
             RETURNING
               id,
               owner_id AS "ownerId",
+              status,
+              current_step AS "currentStep",
+
               title,
               description,
               category,
               stage,
+
               problem_statement AS "problemStatement",
               target_users AS "targetUsers",
               current_solution AS "currentSolution",
               problem_evidence AS "problemEvidence",
+
               solution_description AS "solutionDescription",
               how_it_works AS "howItWorks",
               unique_value AS "uniqueValue",
+
               created_at AS "createdAt",
               updated_at AS "updatedAt"
           `,
           [
             currentUser.id,
+            currentStep,
+
             input.title.trim(),
             input.description.trim(),
             input.category.trim(),
             input.stage,
+
             input.problemStatement.trim(),
             input.targetUsers.trim(),
             input.currentSolution.trim(),
             input.problemEvidence.trim(),
+
             input.solutionDescription.trim(),
             input.howItWorks.trim(),
             input.uniqueValue.trim(),
           ],
         );
+
+      if (!result.rows[0]) {
+        throw new Error(
+          'Unable to create your draft.',
+        );
+      }
 
       return result.rows[0];
     },
@@ -458,40 +709,28 @@ export const resolvers = {
   User: {
     createdAt: (
       user: {
-        createdAt: Date | string;
+        createdAt: unknown;
       },
-    ) =>
-      user.createdAt instanceof Date
-        ? user.createdAt.toISOString()
-        : user.createdAt,
+    ) => formatDate(user.createdAt),
 
     updatedAt: (
       user: {
-        updatedAt: Date | string;
+        updatedAt: unknown;
       },
-    ) =>
-      user.updatedAt instanceof Date
-        ? user.updatedAt.toISOString()
-        : user.updatedAt,
+    ) => formatDate(user.updatedAt),
   },
 
   Idea: {
     createdAt: (
       idea: {
-        createdAt: Date | string;
+        createdAt: unknown;
       },
-    ) =>
-      idea.createdAt instanceof Date
-        ? idea.createdAt.toISOString()
-        : idea.createdAt,
+    ) => formatDate(idea.createdAt),
 
     updatedAt: (
       idea: {
-        updatedAt: Date | string;
+        updatedAt: unknown;
       },
-    ) =>
-      idea.updatedAt instanceof Date
-        ? idea.updatedAt.toISOString()
-        : idea.updatedAt,
+    ) => formatDate(idea.updatedAt),
   },
 };

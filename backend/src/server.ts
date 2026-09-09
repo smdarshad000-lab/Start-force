@@ -2,96 +2,27 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import pino from 'pino';
-import { ApolloServer } from '@apollo/server';
-import { expressMiddleware } from '@as-integrations/express5';
+import {
+  ApolloServer,
+} from '@apollo/server';
+import {
+  expressMiddleware,
+} from '@as-integrations/express5';
 
 import { env } from './config/env.js';
-import { db, pool } from './database.js';
-
 import {
-  typeDefs,
-  resolvers,
-} from './graphql/schema.js';
+  db,
+  pool,
+} from './database.js';
 
 import {
   SESSION_COOKIE_NAME,
 } from './auth/session.js';
 
-function getSessionToken(
-  cookieHeader: string | undefined,
-): string | undefined {
-  if (!cookieHeader) {
-    return undefined;
-  }
-
-  const cookies =
-    cookieHeader.split(';');
-
-  for (const cookie of cookies) {
-    const separatorIndex =
-      cookie.indexOf('=');
-
-    if (separatorIndex === -1) {
-      continue;
-    }
-
-    const name = cookie
-      .slice(0, separatorIndex)
-      .trim();
-
-    const value = cookie
-      .slice(separatorIndex + 1)
-      .trim();
-
-    if (name === SESSION_COOKIE_NAME) {
-      return decodeURIComponent(value);
-    }
-  }
-
-  return undefined;
-}
-
-function createSessionCookie(
-  token: string,
-): string {
-  const maxAge =
-    60 * 60 * 24 * 30;
-
-  const secure =
-    env.nodeEnv === 'production'
-      ? '; Secure'
-      : '';
-
-  return [
-    `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`,
-    'Path=/',
-    'HttpOnly',
-    'SameSite=Lax',
-    `Max-Age=${maxAge}`,
-    secure.replace('; ', ''),
-  ]
-    .filter(Boolean)
-    .join('; ');
-}
-
-function createExpiredSessionCookie(): string {
-  const secure =
-    env.nodeEnv === 'production'
-      ? '; Secure'
-      : '';
-
-  return [
-    `${SESSION_COOKIE_NAME}=`,
-    'Path=/',
-    'HttpOnly',
-    'SameSite=Lax',
-    'Max-Age=0',
-    'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
-    secure.replace('; ', ''),
-  ]
-    .filter(Boolean)
-    .join('; ');
-}
+import {
+  typeDefs,
+  resolvers,
+} from './graphql/schema.js';
 
 const logger = pino({
   level:
@@ -109,149 +40,129 @@ const logger = pino({
 
 const app = express();
 
-const apollo = new ApolloServer({
-  typeDefs,
-  resolvers,
-});
+const apollo =
+  new ApolloServer({
+    typeDefs,
+    resolvers,
+  });
 
-async function startServer() {
-  try {
-    await apollo.start();
+await apollo.start();
 
-    logger.info(
-      'Apollo Server started',
-    );
+logger.info(
+  'Apollo Server started',
+);
 
-    app.use(helmet());
+app.use(
+  helmet(),
+);
 
-    app.use(
-      cors({
-        origin: env.corsOrigin,
-        credentials: true,
-      }),
-    );
+app.use(
+  cors({
+    origin: env.corsOrigin,
+    credentials: true,
+  }),
+);
 
-    app.get('/health', (_req, res) => {
-      res.status(200).json({
-        status: 'ok',
-        service: 'start-force-api',
-        timestamp:
-          new Date().toISOString(),
-      });
+app.get(
+  '/health',
+  (
+    _req,
+    res,
+  ) => {
+    res.json({
+      status: 'ok',
+      service: 'start-force-api',
+      timestamp:
+        new Date().toISOString(),
     });
+  },
+);
 
-    app.use(
-      '/graphql',
-      express.json(),
-      expressMiddleware(apollo, {
-        context: async ({
-          req,
-          res,
-        }) => {
-          const sessionToken =
-            getSessionToken(
-              req.headers.cookie,
-            );
+app.use(
+  '/graphql',
+  express.json(),
 
-          const setSessionCookie = (
+  expressMiddleware(
+    apollo,
+    {
+      context: async ({
+        req,
+        res,
+      }) => {
+        const sessionToken =
+          req.headers.cookie
+            ?.split(';')
+            .map(
+              (value) =>
+                value.trim(),
+            )
+            .find(
+              (value) =>
+                value.startsWith(
+                  `${SESSION_COOKIE_NAME}=`,
+                ),
+            )
+            ?.split('=')
+            .slice(1)
+            .join('=') ??
+          undefined;
+
+        return {
+          db,
+          pool,
+          sessionToken,
+
+          setSessionCookie: (
             token: string,
           ) => {
-            res.setHeader(
-              'Set-Cookie',
-              createSessionCookie(
-                token,
-              ),
+            res.cookie(
+              SESSION_COOKIE_NAME,
+              token,
+              {
+                httpOnly: true,
+                sameSite: 'lax',
+                secure:
+                  env.nodeEnv ===
+                  'production',
+                path: '/',
+                maxAge:
+                  1000 *
+                  60 *
+                  60 *
+                  24 *
+                  30,
+              },
             );
-          };
+          },
 
-          const clearSessionCookie =
-            () => {
-              res.setHeader(
-                'Set-Cookie',
-                createExpiredSessionCookie(),
-              );
-            };
-
-          return {
-            db,
-            pool,
-            sessionToken,
-            setSessionCookie,
-            clearSessionCookie,
-          };
-        },
-      }),
-    );
-
-    const server = app.listen(
-      env.port,
-      () => {
-        logger.info(
-          `Start-force API running on http://localhost:${env.port}`,
-        );
-
-        logger.info(
-          `GraphQL endpoint: http://localhost:${env.port}/graphql`,
-        );
+          clearSessionCookie: () => {
+            res.clearCookie(
+              SESSION_COOKIE_NAME,
+              {
+                httpOnly: true,
+                sameSite: 'lax',
+                secure:
+                  env.nodeEnv ===
+                  'production',
+                path: '/',
+              },
+            );
+          },
+        };
       },
+    },
+  ),
+);
+
+app.listen(
+  env.port,
+  () => {
+    logger.info(
+      `Start-force API running on http://localhost:${env.port}`,
     );
 
-    const shutdown = async (
-      signal: string,
-    ) => {
-      logger.info(
-        `${signal} received. Shutting down...`,
-      );
-
-      server.close(async () => {
-        try {
-          await apollo.stop();
-          await pool.end();
-
-          logger.info(
-            'Start-force API shut down cleanly',
-          );
-
-          process.exit(0);
-        } catch (error) {
-          logger.error(
-            error,
-            'Error during graceful shutdown',
-          );
-
-          process.exit(1);
-        }
-      });
-    };
-
-    process.on(
-      'SIGINT',
-      () => {
-        void shutdown('SIGINT');
-      },
+    logger.info(
+      `GraphQL endpoint: http://localhost:${env.port}/graphql`,
     );
-
-    process.on(
-      'SIGTERM',
-      () => {
-        void shutdown('SIGTERM');
-      },
-    );
-  } catch (error) {
-    logger.fatal(
-      error,
-      'Failed to start Start-force API',
-    );
-
-    try {
-      await apollo.stop();
-      await pool.end();
-    } catch {
-      // Ignore cleanup errors.
-    }
-
-    process.exit(1);
-  }
-}
-
-void startServer();
+  },
+);

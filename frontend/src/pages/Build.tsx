@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import {
+  useEffect,
+  useState,
+} from 'react';
 
 import {
   gql,
   useMutation,
+  useQuery,
 } from '@apollo/client';
 
 import { CollaborationNeeds } from '../components/build/CollaborationNeeds';
@@ -18,11 +22,37 @@ import {
 
 import { useAuth } from '../context/AuthContext';
 
-const CREATE_IDEA_MUTATION = gql`
-  mutation CreateIdea($input: CreateIdeaInput!) {
-    createIdea(input: $input) {
+const MY_DRAFT_QUERY = gql`
+  query MyDraft {
+    myDraft {
       id
       ownerId
+      status
+      currentStep
+      title
+      description
+      category
+      stage
+      problemStatement
+      targetUsers
+      currentSolution
+      problemEvidence
+      solutionDescription
+      howItWorks
+      uniqueValue
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+const SAVE_DRAFT_MUTATION = gql`
+  mutation SaveDraft($input: SaveDraftInput!) {
+    saveDraft(input: $input) {
+      id
+      ownerId
+      status
+      currentStep
       title
       description
       category
@@ -88,36 +118,208 @@ const validationMethods = [
   'Other',
 ];
 
+type DraftResponse = {
+  id: string;
+  ownerId: string;
+  status: 'DRAFT' | 'PUBLISHED';
+  currentStep: number;
+  title: string;
+  description: string;
+  category: string;
+  stage: 'Research' | 'Prototype' | 'MVP' | 'Startup';
+  problemStatement: string;
+  targetUsers: string;
+  currentSolution: string;
+  problemEvidence: string;
+  solutionDescription: string;
+  howItWorks: string;
+  uniqueValue: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+function isValidStep(
+  step: number,
+): boolean {
+  return (
+    Number.isInteger(step) &&
+    step >= 1 &&
+    step <= 5
+  );
+}
+
+function draftFromDatabase(
+  savedDraft: DraftResponse,
+): BuildDraft {
+  return {
+    ...initialBuildDraft,
+
+    title: savedDraft.title,
+    description:
+      savedDraft.description,
+    category: savedDraft.category,
+    ideaStage:
+      savedDraft.stage,
+
+    problemStatement:
+      savedDraft.problemStatement,
+
+    targetUsers:
+      savedDraft.targetUsers,
+
+    currentSolution:
+      savedDraft.currentSolution,
+
+    problemEvidence:
+      savedDraft.problemEvidence,
+
+    solutionDescription:
+      savedDraft.solutionDescription,
+
+    howItWorks:
+      savedDraft.howItWorks,
+
+    uniqueValue:
+      savedDraft.uniqueValue,
+  };
+}
+
 export function Build() {
-  const { user } = useAuth();
-
-  const [currentStage, setCurrentStage] =
-    useState(1);
-
-  const [draft, setDraft] =
-    useState<BuildDraft>(
-      initialBuildDraft,
-    );
+  const {
+    user,
+    loading: authLoading,
+  } = useAuth();
 
   const [
-    createIdea,
-    { loading: saving },
-  ] = useMutation(
-    CREATE_IDEA_MUTATION,
+    currentStage,
+    setCurrentStage,
+  ] = useState(1);
+
+  const [
+    draft,
+    setDraft,
+  ] = useState<BuildDraft>(
+    initialBuildDraft,
   );
 
-  const [saveError, setSaveError] =
-    useState('');
+  const [
+    hasRestoredDraft,
+    setHasRestoredDraft,
+  ] = useState(false);
+
+  const [
+    saveError,
+    setSaveError,
+  ] = useState('');
 
   const [
     saveSuccess,
     setSaveSuccess,
   ] = useState('');
 
-  const [savedIdeaId, setSavedIdeaId] =
-    useState<string | null>(null);
+  const [
+    savedIdeaId,
+    setSavedIdeaId,
+  ] = useState<
+    string | null
+  >(null);
 
-  const totalStages = stages.length;
+  const {
+    data: draftData,
+    loading: draftLoading,
+    error: draftLoadError,
+  } = useQuery<{
+    myDraft:
+      | DraftResponse
+      | null;
+  }>(
+    MY_DRAFT_QUERY,
+    {
+      skip:
+        authLoading ||
+        !user,
+      fetchPolicy:
+        'network-only',
+    },
+  );
+
+  const [
+    saveDraft,
+    {
+      loading: saving,
+    },
+  ] = useMutation<{
+    saveDraft:
+      DraftResponse;
+  }>(
+    SAVE_DRAFT_MUTATION,
+  );
+
+  /*
+   * Restore the saved draft once the
+   * authentication state and query are ready.
+   */
+  useEffect(() => {
+    if (
+      authLoading ||
+      draftLoading ||
+      hasRestoredDraft
+    ) {
+      return;
+    }
+
+    if (
+      !user ||
+      draftLoadError
+    ) {
+      setHasRestoredDraft(true);
+      return;
+    }
+
+    const savedDraft =
+      draftData?.myDraft;
+
+    if (!savedDraft) {
+      setHasRestoredDraft(true);
+      return;
+    }
+
+    setDraft(
+      draftFromDatabase(
+        savedDraft,
+      ),
+    );
+
+    if (
+      isValidStep(
+        savedDraft.currentStep,
+      )
+    ) {
+      setCurrentStage(
+        savedDraft.currentStep,
+      );
+    }
+
+    setSavedIdeaId(
+      savedDraft.id,
+    );
+
+    setHasRestoredDraft(true);
+
+    setSaveSuccess(
+      'Your saved draft has been restored.',
+    );
+  }, [
+    authLoading,
+    draftLoading,
+    draftData,
+    draftLoadError,
+    hasRestoredDraft,
+    user,
+  ]);
+
+  const totalStages =
+    stages.length;
 
   const isIdeaComplete =
     draft.title.trim().length >= 5 &&
@@ -160,10 +362,12 @@ export function Build() {
     field: K,
     value: BuildDraft[K],
   ) {
-    setDraft((currentDraft) => ({
-      ...currentDraft,
-      [field]: value,
-    }));
+    setDraft(
+      (currentDraft) => ({
+        ...currentDraft,
+        [field]: value,
+      }),
+    );
 
     setSaveError('');
     setSaveSuccess('');
@@ -173,7 +377,9 @@ export function Build() {
     setSaveError('');
     setSaveSuccess('');
 
-    if (currentStage === 1) {
+    if (
+      currentStage === 1
+    ) {
       if (!isIdeaComplete) {
         return;
       }
@@ -182,7 +388,9 @@ export function Build() {
       return;
     }
 
-    if (currentStage === 2) {
+    if (
+      currentStage === 2
+    ) {
       if (!isEvidenceComplete) {
         return;
       }
@@ -191,9 +399,13 @@ export function Build() {
       return;
     }
 
-    if (currentStage < totalStages) {
+    if (
+      currentStage <
+      totalStages
+    ) {
       setCurrentStage(
-        (stage) => stage + 1,
+        (stage) =>
+          stage + 1,
       );
     }
   }
@@ -202,9 +414,12 @@ export function Build() {
     setSaveError('');
     setSaveSuccess('');
 
-    if (currentStage > 1) {
+    if (
+      currentStage > 1
+    ) {
       setCurrentStage(
-        (stage) => stage - 1,
+        (stage) =>
+          stage - 1,
       );
     }
   }
@@ -212,12 +427,12 @@ export function Build() {
   async function handleSaveDraft() {
     setSaveError('');
     setSaveSuccess('');
-    setSavedIdeaId(null);
 
     if (!user) {
       setSaveError(
         'You must be signed in to save an idea.',
       );
+
       return;
     }
 
@@ -227,44 +442,63 @@ export function Build() {
 
     try {
       const result =
-        await createIdea({
+        await saveDraft({
           variables: {
             input: {
-              title: draft.title.trim(),
+              title:
+                draft.title.trim(),
+
               description:
                 draft.description.trim(),
+
               category:
                 draft.category.trim(),
-              stage: draft.ideaStage,
+
+              stage:
+                draft.ideaStage as
+                  | 'Research'
+                  | 'Prototype'
+                  | 'MVP'
+                  | 'Startup',
+
               problemStatement:
                 draft.problemStatement.trim(),
+
               targetUsers:
                 draft.targetUsers.trim(),
+
               currentSolution:
                 draft.currentSolution.trim(),
+
               problemEvidence:
                 draft.problemEvidence.trim(),
+
               solutionDescription:
                 draft.solutionDescription.trim(),
+
               howItWorks:
                 draft.howItWorks.trim(),
+
               uniqueValue:
                 draft.uniqueValue.trim(),
+
+              currentStep:
+                currentStage,
             },
           },
         });
 
-      const createdIdea =
-        result.data?.createIdea;
+      const savedDraft =
+        result.data?.saveDraft;
 
-      if (!createdIdea) {
+      if (!savedDraft) {
         throw new Error(
-          'The server did not return the saved idea.',
+          'The server did not return the saved draft.',
         );
       }
 
       setSavedIdeaId(
-        createdIdea.id,
+        savedDraft.id,
       );
 
       setSaveSuccess(
@@ -272,21 +506,15 @@ export function Build() {
       );
     } catch (error) {
       console.error(
-        'Failed to save idea:',
+        'Failed to save draft:',
         error,
       );
 
-      if (
+      setSaveError(
         error instanceof Error
-      ) {
-        setSaveError(
-          error.message,
-        );
-      } else {
-        setSaveError(
-          'Unable to save your idea. Please try again.',
-        );
-      }
+          ? error.message
+          : 'Unable to save your draft.',
+      );
     }
   }
 
@@ -296,24 +524,47 @@ export function Build() {
       | 'Limited'
       | 'Private',
   ) {
-    /*
-     * Publishing will be connected to the database
-     * after draft persistence is verified.
-     */
     console.log(
       'Publish requested:',
       {
         visibility,
         draft,
-        userId: user?.id,
+        userId:
+          user?.id,
       },
+    );
+  }
+
+  /*
+   * Wait until authentication and draft
+   * restoration have completed.
+   */
+  if (
+    authLoading ||
+    (
+      user &&
+      draftLoading &&
+      !hasRestoredDraft
+    )
+  ) {
+    return (
+      <PageContainer>
+        <section className="flex min-h-[60vh] items-center justify-center">
+          <div className="text-center">
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-500" />
+
+            <p className="mt-4 text-sm font-medium text-slate-600">
+              Loading your Build workspace...
+            </p>
+          </div>
+        </section>
+      </PageContainer>
     );
   }
 
   return (
     <PageContainer>
       <section className="py-10">
-        {/* Header */}
         <div className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-600">
             Build
@@ -330,8 +581,31 @@ export function Build() {
           </p>
         </div>
 
+        {saveSuccess && (
+          <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <div className="font-semibold">
+              {saveSuccess}
+            </div>
+
+            {savedIdeaId && (
+              <div className="mt-1 text-xs text-emerald-600">
+                Draft ID: {savedIdeaId}
+              </div>
+            )}
+          </div>
+        )}
+
+        {saveError && (
+          <div
+            role="alert"
+            className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
+            {saveError}
+          </div>
+        )}
+
         {/* Progress */}
-        <div className="mt-12 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-950">
@@ -346,7 +620,8 @@ export function Build() {
 
             <p className="text-sm font-medium text-slate-500">
               {Math.round(
-                (currentStage / totalStages) *
+                (currentStage /
+                  totalStages) *
                   100,
               )}
               %
@@ -422,27 +697,28 @@ export function Build() {
           </div>
         </div>
 
-        {/* Stage 1 */}
+        {/* ========================= */}
+        {/* STAGE 1 */}
+        {/* ========================= */}
+
         {currentStage === 1 && (
           <div className="mt-8 space-y-8">
-            {/* Basic information */}
+
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-              <div className="max-w-3xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-                  Part 1
-                </p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+                Part 1
+              </p>
 
-                <h2 className="mt-3 text-2xl font-bold text-slate-950">
-                  Basic information
-                </h2>
+              <h2 className="mt-3 text-2xl font-bold text-slate-950">
+                Basic information
+              </h2>
 
-                <p className="mt-3 leading-7 text-slate-600">
-                  Start by giving your idea a
-                  clear identity.
-                </p>
-              </div>
+              <p className="mt-3 leading-7 text-slate-600">
+                Start by giving your idea a clear identity.
+              </p>
 
               <div className="mt-8 space-y-6">
+
                 <div>
                   <label
                     htmlFor="idea-title"
@@ -450,11 +726,6 @@ export function Build() {
                   >
                     Idea title
                   </label>
-
-                  <p className="mt-1 text-lg text-slate-500">
-                    Give your idea a clear and
-                    memorable name.
-                  </p>
 
                   <input
                     id="idea-title"
@@ -468,7 +739,7 @@ export function Build() {
                     }
                     placeholder="e.g. AI Crop Disease Detection"
                     maxLength={100}
-                    className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
 
                   <div className="mt-2 text-right text-xs text-slate-400">
@@ -484,16 +755,9 @@ export function Build() {
                     Short description
                   </label>
 
-                  <p className="mt-1 text-sm text-slate-500">
-                    Explain what your idea does
-                    and who it helps.
-                  </p>
-
                   <textarea
                     id="idea-description"
-                    value={
-                      draft.description
-                    }
+                    value={draft.description}
                     onChange={(event) =>
                       updateDraft(
                         'description',
@@ -503,7 +767,7 @@ export function Build() {
                     placeholder="Describe what your idea does and who it helps..."
                     maxLength={500}
                     rows={5}
-                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
 
                   <div className="mt-2 text-right text-xs text-slate-400">
@@ -512,6 +776,7 @@ export function Build() {
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2">
+
                   <div>
                     <label
                       htmlFor="idea-category"
@@ -522,28 +787,26 @@ export function Build() {
 
                     <select
                       id="idea-category"
-                      value={
-                        draft.category
-                      }
+                      value={draft.category}
                       onChange={(event) =>
                         updateDraft(
                           'category',
                           event.target.value,
                         )
                       }
-                      className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                      className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                     >
                       <option value="">
                         Select a category
                       </option>
 
                       {categories.map(
-                        (item) => (
+                        (category) => (
                           <option
-                            key={item}
-                            value={item}
+                            key={category}
+                            value={category}
                           >
-                            {item}
+                            {category}
                           </option>
                         ),
                       )}
@@ -560,50 +823,48 @@ export function Build() {
 
                     <select
                       id="idea-stage"
-                      value={
-                        draft.ideaStage
-                      }
+                      value={draft.ideaStage}
                       onChange={(event) =>
                         updateDraft(
                           'ideaStage',
                           event.target.value,
                         )
                       }
-                      className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                      className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                     >
                       <option value="">
                         Select current stage
                       </option>
 
                       {ideaStages.map(
-                        (item) => (
+                        (stage) => (
                           <option
-                            key={item}
-                            value={item}
+                            key={stage}
+                            value={stage}
                           >
-                            {item}
+                            {stage}
                           </option>
                         ),
                       )}
                     </select>
                   </div>
+
                 </div>
               </div>
             </section>
 
-            {/* Problem */}
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-              <div className="max-w-3xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-                  Part 2
-                </p>
 
-                <h2 className="mt-3 text-2xl font-bold text-slate-950">
-                  Define the problem
-                </h2>
-              </div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+                Part 2
+              </p>
+
+              <h2 className="mt-3 text-2xl font-bold text-slate-950">
+                Define the problem
+              </h2>
 
               <div className="mt-8 space-y-6">
+
                 <div>
                   <label
                     htmlFor="problem-statement"
@@ -614,19 +875,16 @@ export function Build() {
 
                   <textarea
                     id="problem-statement"
-                    value={
-                      draft.problemStatement
-                    }
+                    value={draft.problemStatement}
                     onChange={(event) =>
                       updateDraft(
                         'problemStatement',
                         event.target.value,
                       )
                     }
-                    placeholder="Describe the problem clearly and specifically..."
                     maxLength={1000}
                     rows={6}
-                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
                 </div>
 
@@ -640,19 +898,16 @@ export function Build() {
 
                   <textarea
                     id="target-users"
-                    value={
-                      draft.targetUsers
-                    }
+                    value={draft.targetUsers}
                     onChange={(event) =>
                       updateDraft(
                         'targetUsers',
                         event.target.value,
                       )
                     }
-                    placeholder="Identify the people, organizations, or communities affected..."
                     maxLength={500}
                     rows={4}
-                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
                 </div>
 
@@ -666,19 +921,16 @@ export function Build() {
 
                   <textarea
                     id="current-solution"
-                    value={
-                      draft.currentSolution
-                    }
+                    value={draft.currentSolution}
                     onChange={(event) =>
                       updateDraft(
                         'currentSolution',
                         event.target.value,
                       )
                     }
-                    placeholder="Explain existing alternatives or processes..."
                     maxLength={750}
                     rows={5}
-                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
                 </div>
 
@@ -692,37 +944,34 @@ export function Build() {
 
                   <textarea
                     id="problem-evidence"
-                    value={
-                      draft.problemEvidence
-                    }
+                    value={draft.problemEvidence}
                     onChange={(event) =>
                       updateDraft(
                         'problemEvidence',
                         event.target.value,
                       )
                     }
-                    placeholder="Share interviews, observations, research, surveys, statistics..."
                     maxLength={1000}
                     rows={6}
-                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
                 </div>
+
               </div>
             </section>
 
-            {/* Solution */}
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-              <div className="max-w-3xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-                  Part 3
-                </p>
 
-                <h2 className="mt-3 text-2xl font-bold text-slate-950">
-                  Describe the solution
-                </h2>
-              </div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+                Part 3
+              </p>
+
+              <h2 className="mt-3 text-2xl font-bold text-slate-950">
+                Describe the solution
+              </h2>
 
               <div className="mt-8 space-y-6">
+
                 <div>
                   <label
                     htmlFor="solution-description"
@@ -733,19 +982,16 @@ export function Build() {
 
                   <textarea
                     id="solution-description"
-                    value={
-                      draft.solutionDescription
-                    }
+                    value={draft.solutionDescription}
                     onChange={(event) =>
                       updateDraft(
                         'solutionDescription',
                         event.target.value,
                       )
                     }
-                    placeholder="Describe the product, service, system, or approach..."
                     maxLength={1200}
                     rows={7}
-                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
                 </div>
 
@@ -759,19 +1005,16 @@ export function Build() {
 
                   <textarea
                     id="how-it-works"
-                    value={
-                      draft.howItWorks
-                    }
+                    value={draft.howItWorks}
                     onChange={(event) =>
                       updateDraft(
                         'howItWorks',
                         event.target.value,
                       )
                     }
-                    placeholder="Describe the main workflow or mechanism..."
                     maxLength={1200}
                     rows={7}
-                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
                 </div>
 
@@ -785,21 +1028,19 @@ export function Build() {
 
                   <textarea
                     id="unique-value"
-                    value={
-                      draft.uniqueValue
-                    }
+                    value={draft.uniqueValue}
                     onChange={(event) =>
                       updateDraft(
                         'uniqueValue',
                         event.target.value,
                       )
                     }
-                    placeholder="Explain your key advantage or differentiator..."
                     maxLength={800}
                     rows={5}
-                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
                 </div>
+
               </div>
             </section>
 
@@ -807,9 +1048,7 @@ export function Build() {
               <button
                 type="button"
                 onClick={goToNextStage}
-                disabled={
-                  !isIdeaComplete
-                }
+                disabled={!isIdeaComplete}
                 className={[
                   'rounded-xl px-6 py-3.5 text-sm font-semibold transition',
                   isIdeaComplete
@@ -823,9 +1062,13 @@ export function Build() {
           </div>
         )}
 
-        {/* Stage 2 */}
+        {/* ========================= */}
+        {/* STAGE 2 */}
+        {/* ========================= */}
+
         {currentStage === 2 && (
           <div className="mt-8 space-y-8">
+
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
                 Evidence
@@ -836,33 +1079,24 @@ export function Build() {
               </h2>
 
               <p className="mt-4 max-w-3xl leading-7 text-slate-600">
-                Add the technical foundation,
-                research, and real-world validation
-                that help other people understand and
-                evaluate your idea.
+                Add the technical foundation, research,
+                and real-world validation that help other
+                people understand and evaluate your idea.
               </p>
             </section>
 
-            {/* Technology */}
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-              <div className="max-w-3xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-                  Technology
-                </p>
 
-                <h2 className="mt-3 text-2xl font-bold text-slate-950">
-                  Technical or scientific approach
-                </h2>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+                Technology
+              </p>
 
-                <p className="mt-3 leading-7 text-slate-600">
-                  This works for software, engineering,
-                  biotechnology, climate research,
-                  materials science, and other technical
-                  projects.
-                </p>
-              </div>
+              <h2 className="mt-3 text-2xl font-bold text-slate-950">
+                Technical or scientific approach
+              </h2>
 
               <div className="mt-8 space-y-6">
+
                 <div>
                   <label
                     htmlFor="technology-approach"
@@ -873,19 +1107,16 @@ export function Build() {
 
                   <textarea
                     id="technology-approach"
-                    value={
-                      draft.technologyApproach
-                    }
+                    value={draft.technologyApproach}
                     onChange={(event) =>
                       updateDraft(
                         'technologyApproach',
                         event.target.value,
                       )
                     }
-                    placeholder="Example: A computer-vision model trained on crop disease images..."
                     maxLength={1200}
                     rows={7}
-                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
                 </div>
 
@@ -899,19 +1130,15 @@ export function Build() {
 
                   <input
                     id="technology-domain"
-                    type="text"
-                    value={
-                      draft.technologyDomain
-                    }
+                    value={draft.technologyDomain}
                     onChange={(event) =>
                       updateDraft(
                         'technologyDomain',
                         event.target.value,
                       )
                     }
-                    placeholder="e.g. Computer Vision, Biotechnology, Materials Science"
                     maxLength={150}
-                    className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
                 </div>
 
@@ -934,7 +1161,7 @@ export function Build() {
                         event.target.value,
                       )
                     }
-                    className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   >
                     <option value="">
                       Select current technology readiness
@@ -972,10 +1199,9 @@ export function Build() {
                         event.target.value,
                       )
                     }
-                    placeholder="Example: GPU compute, ML engineer, agricultural dataset, field testing equipment..."
                     maxLength={1000}
                     rows={6}
-                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
                 </div>
 
@@ -998,12 +1224,12 @@ export function Build() {
                         event.target.value,
                       )
                     }
-                    placeholder="Example: We built an initial prototype and tested it on 500 images..."
                     maxLength={1000}
                     rows={6}
-                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
                 </div>
+
               </div>
             </section>
 
@@ -1017,26 +1243,18 @@ export function Build() {
               }
             />
 
-            {/* Validation */}
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-              <div className="max-w-3xl">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-                  Validation
-                </p>
 
-                <h2 className="mt-3 text-2xl font-bold text-slate-950">
-                  Show what you have learned so far
-                </h2>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+                Validation
+              </p>
 
-                <p className="mt-3 leading-7 text-slate-600">
-                  Validation helps people understand
-                  whether the problem and solution have
-                  been tested with real users,
-                  experiments, or other evidence.
-                </p>
-              </div>
+              <h2 className="mt-3 text-2xl font-bold text-slate-950">
+                Show what you have learned so far
+              </h2>
 
               <div className="mt-8 space-y-6">
+
                 <div>
                   <label
                     htmlFor="validation-method"
@@ -1056,7 +1274,7 @@ export function Build() {
                         event.target.value,
                       )
                     }
-                    className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                    className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   >
                     <option value="">
                       Select validation method
@@ -1090,7 +1308,6 @@ export function Build() {
 
                         <input
                           id="validation-audience"
-                          type="text"
                           value={
                             draft.validationAudience
                           }
@@ -1100,8 +1317,7 @@ export function Build() {
                               event.target.value,
                             )
                           }
-                          placeholder="e.g. 25 farmers in Maharashtra"
-                          className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                          className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                         />
                       </div>
 
@@ -1126,8 +1342,7 @@ export function Build() {
                               event.target.value,
                             )
                           }
-                          placeholder="e.g. 25"
-                          className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                          className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                         />
                       </div>
 
@@ -1150,10 +1365,9 @@ export function Build() {
                               event.target.value,
                             )
                           }
-                          placeholder="Describe the main findings from your validation..."
                           maxLength={1200}
                           rows={6}
-                          className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                          className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                         />
                       </div>
 
@@ -1176,10 +1390,9 @@ export function Build() {
                               event.target.value,
                             )
                           }
-                          placeholder="Add measurable results, observations, links, or other supporting evidence..."
                           maxLength={1200}
                           rows={6}
-                          className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                          className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                         />
                       </div>
                     </>
@@ -1198,6 +1411,7 @@ export function Build() {
             </section>
 
             <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-between">
+
               <button
                 type="button"
                 onClick={
@@ -1227,10 +1441,15 @@ export function Build() {
           </div>
         )}
 
-        {/* Stage 3 */}
+        {/* ========================= */}
+        {/* STAGE 3 */}
+        {/* ========================= */}
+
         {currentStage === 3 && (
           <div className="mt-8 space-y-8">
+
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
                 Collaboration
               </p>
@@ -1240,9 +1459,9 @@ export function Build() {
               </h2>
 
               <p className="mt-4 leading-7 text-slate-600">
-                Tell the community which roles,
-                skills, and collaborators would help
-                you move this idea forward.
+                Tell the community which roles, skills,
+                and collaborators would help you move
+                this idea forward.
               </p>
             </section>
 
@@ -1250,18 +1469,18 @@ export function Build() {
               items={
                 draft.collaborationNeeds
               }
-              onChange={
-                (
+              onChange={(
+                collaborationNeeds,
+              ) =>
+                updateDraft(
+                  'collaborationNeeds',
                   collaborationNeeds,
-                ) =>
-                  updateDraft(
-                    'collaborationNeeds',
-                    collaborationNeeds,
-                  )
+                )
               }
             />
 
             <div className="border-t border-slate-200 pt-6">
+
               <button
                 type="button"
                 onClick={
@@ -1279,14 +1498,20 @@ export function Build() {
               >
                 Continue to Funding →
               </button>
+
             </div>
           </div>
         )}
 
-        {/* Stage 4 */}
+        {/* ========================= */}
+        {/* STAGE 4 */}
+        {/* ========================= */}
+
         {currentStage === 4 && (
           <div className="mt-8 space-y-8">
+
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
                 Funding
               </p>
@@ -1296,11 +1521,9 @@ export function Build() {
               </h2>
 
               <p className="mt-4 max-w-3xl leading-7 text-slate-600">
-                Funding is only one part of
-                building something new. Tell the
-                community what financial support and
-                other resources could help your idea
-                progress.
+                Funding is only one part of building
+                something new. Tell the community what
+                support could help your idea progress.
               </p>
             </section>
 
@@ -1315,6 +1538,7 @@ export function Build() {
             />
 
             <div className="border-t border-slate-200 pt-6">
+
               <button
                 type="button"
                 onClick={
@@ -1332,45 +1556,17 @@ export function Build() {
               >
                 Review Idea →
               </button>
+
             </div>
           </div>
         )}
 
-        {/* Stage 5 */}
+        {/* ========================= */}
+        {/* STAGE 5 */}
+        {/* ========================= */}
+
         {currentStage === 5 && (
           <div className="mt-8">
-            {saveError && (
-              <div
-                role="alert"
-                className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-              >
-                {saveError}
-              </div>
-            )}
-
-            {saveSuccess && (
-              <div
-                role="status"
-                className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-              >
-                <div className="font-semibold">
-                  {saveSuccess}
-                </div>
-
-                {savedIdeaId && (
-                  <div className="mt-1 text-xs text-emerald-600">
-                    Idea ID: {savedIdeaId}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!user && (
-              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                You are currently signed out.
-                Sign in before saving your idea.
-              </div>
-            )}
 
             <ReviewStage
               draft={draft}
@@ -1382,6 +1578,7 @@ export function Build() {
             />
 
             <div className="mt-6 border-t border-slate-200 pt-6">
+
               <button
                 type="button"
                 onClick={
@@ -1391,6 +1588,7 @@ export function Build() {
               >
                 ← Back to Funding
               </button>
+
             </div>
           </div>
         )}
