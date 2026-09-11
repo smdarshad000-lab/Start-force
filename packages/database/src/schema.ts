@@ -1,5 +1,6 @@
 import {
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -7,13 +8,19 @@ import {
 } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: uuid('id')
+    .defaultRandom()
+    .primaryKey(),
 
-  name: text('name').notNull(),
+  name: text('name')
+    .notNull(),
 
-  email: text('email').notNull().unique(),
+  email: text('email')
+    .notNull()
+    .unique(),
 
-  passwordHash: text('password_hash').notNull(),
+  passwordHash: text('password_hash')
+    .notNull(),
 
   createdAt: timestamp('created_at', {
     withTimezone: true,
@@ -29,7 +36,9 @@ export const users = pgTable('users', {
 });
 
 export const sessions = pgTable('sessions', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: uuid('id')
+    .defaultRandom()
+    .primaryKey(),
 
   userId: uuid('user_id')
     .notNull()
@@ -37,11 +46,14 @@ export const sessions = pgTable('sessions', {
       onDelete: 'cascade',
     }),
 
-  token: text('token').notNull().unique(),
+  token: text('token')
+    .notNull()
+    .unique(),
 
   expiresAt: timestamp('expires_at', {
     withTimezone: true,
-  }).notNull(),
+  })
+    .notNull(),
 
   createdAt: timestamp('created_at', {
     withTimezone: true,
@@ -51,7 +63,9 @@ export const sessions = pgTable('sessions', {
 });
 
 export const ideas = pgTable('ideas', {
-  id: uuid('id').defaultRandom().primaryKey(),
+  id: uuid('id')
+    .defaultRandom()
+    .primaryKey(),
 
   ownerId: uuid('owner_id')
     .notNull()
@@ -59,51 +73,148 @@ export const ideas = pgTable('ideas', {
       onDelete: 'cascade',
     }),
 
-  /*
-   * DRAFT:
-   * The user can keep working on the idea.
-   *
-   * PUBLISHED:
-   * The idea has been published to Start-force.
-   */
   status: text('status')
     .notNull()
     .default('DRAFT'),
 
-  /*
-   * Stores the last Build step reached by the user.
-   *
-   * 1 = Idea
-   * 2 = Evidence
-   * 3 = Collaboration
-   * 4 = Funding
-   * 5 = Review
-   */
   currentStep: integer('current_step')
     .notNull()
     .default(1),
 
-  title: text('title').notNull(),
+  /*
+   * Core idea
+   */
+  title: text('title')
+    .notNull(),
 
-  description: text('description').notNull(),
+  description: text('description')
+    .notNull(),
 
-  category: text('category').notNull(),
+  category: text('category')
+    .notNull(),
 
-  stage: text('stage').notNull(),
+  stage: text('stage')
+    .notNull(),
 
-  problemStatement: text('problem_statement').notNull(),
+  /*
+   * Problem
+   */
+  problemStatement: text('problem_statement')
+    .notNull(),
 
-  targetUsers: text('target_users').notNull(),
+  targetUsers: text('target_users')
+    .notNull(),
 
-  currentSolution: text('current_solution').notNull(),
+  currentSolution: text('current_solution')
+    .notNull(),
 
-  problemEvidence: text('problem_evidence').notNull(),
+  problemEvidence: text('problem_evidence')
+    .notNull(),
 
-  solutionDescription: text('solution_description').notNull(),
+  /*
+   * Solution
+   */
+  solutionDescription: text('solution_description')
+    .notNull(),
 
-  howItWorks: text('how_it_works').notNull(),
+  howItWorks: text('how_it_works')
+    .notNull(),
 
-  uniqueValue: text('unique_value').notNull(),
+  uniqueValue: text('unique_value')
+    .notNull(),
+
+  /*
+   * Technology
+   */
+  technologyApproach: text('technology_approach')
+    .notNull()
+    .default(''),
+
+  technologyDomain: text('technology_domain')
+    .notNull()
+    .default(''),
+
+  technologyReadiness: text('technology_readiness')
+    .notNull()
+    .default(''),
+
+  requiredTechnology: text('required_technology')
+    .notNull()
+    .default(''),
+
+  existingImplementation: text('existing_implementation')
+    .notNull()
+    .default(''),
+
+  /*
+   * Validation
+   */
+  validationMethod: text('validation_method')
+    .notNull()
+    .default(''),
+
+  validationAudience: text('validation_audience')
+    .notNull()
+    .default(''),
+
+  validationSampleSize: text('validation_sample_size')
+    .notNull()
+    .default(''),
+
+  validationFindings: text('validation_findings')
+    .notNull()
+    .default(''),
+
+  validationEvidence: text('validation_evidence')
+    .notNull()
+    .default(''),
+
+  /*
+   * Collaboration
+   *
+   * Stored as JSON because a draft can have
+   * multiple collaboration needs.
+   */
+  collaborationNeeds: jsonb('collaboration_needs')
+    .$type<
+      Array<{
+        id: string;
+        role: string;
+        responsibilities: string;
+        skills: string;
+        openings: string;
+        collaborationType: string;
+      }>
+    >()
+    .notNull()
+    .default([]),
+
+  /*
+   * Funding and non-financial resources.
+   *
+   * Stored as JSON because FundingData contains
+   * a variable-length resources array.
+   */
+  funding: jsonb('funding')
+    .$type<{
+      needsFunding: string;
+      amount: string;
+      type: string;
+      purpose: string;
+      resources: Array<{
+        id: string;
+        type: string;
+        description: string;
+      }>;
+    }>()
+    .notNull()
+    .default({
+      needsFunding: '',
+      amount: '',
+      type: '',
+      purpose: '',
+      resources: [],
+    }),
 
   createdAt: timestamp('created_at', {
     withTimezone: true,
@@ -118,30 +229,38 @@ export const ideas = pgTable('ideas', {
     .notNull(),
 });
 
-export const researchItems = pgTable('research_items', {
-  id: uuid('id').defaultRandom().primaryKey(),
+export const researchItems = pgTable(
+  'research_items',
+  {
+    id: uuid('id')
+      .defaultRandom()
+      .primaryKey(),
 
-  ideaId: uuid('idea_id')
-    .notNull()
-    .references(() => ideas.id, {
-      onDelete: 'cascade',
-    }),
+    ideaId: uuid('idea_id')
+      .notNull()
+      .references(() => ideas.id, {
+        onDelete: 'cascade',
+      }),
 
-  type: text('type').notNull(),
+    type: text('type')
+      .notNull(),
 
-  title: text('title').notNull(),
+    title: text('title')
+      .notNull(),
 
-  url: text('url'),
+    url: text('url'),
 
-  source: text('source'),
+    source: text('source'),
 
-  year: integer('year'),
+    year: integer('year'),
 
-  relevance: text('relevance').notNull(),
+    relevance: text('relevance')
+      .notNull(),
 
-  createdAt: timestamp('created_at', {
-    withTimezone: true,
-  })
-    .defaultNow()
-    .notNull(),
-});
+    createdAt: timestamp('created_at', {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+  },
+);

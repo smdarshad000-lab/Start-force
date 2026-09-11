@@ -18,6 +18,15 @@ import { PageContainer } from '../components/layout/PageContainer';
 import {
   initialBuildDraft,
   type BuildDraft,
+  type CollaborationNeed,
+  type CollaborationType,
+  type EvidenceType,
+  type FundingData,
+  type FundingPurpose,
+  type FundingType,
+  type ResearchItem,
+  type ResourceNeed,
+  type ResourceType,
 } from '../types/build';
 
 import { useAuth } from '../context/AuthContext';
@@ -29,17 +38,65 @@ const MY_DRAFT_QUERY = gql`
       ownerId
       status
       currentStep
+
       title
       description
       category
       stage
+
       problemStatement
       targetUsers
       currentSolution
       problemEvidence
+
       solutionDescription
       howItWorks
       uniqueValue
+
+      technologyApproach
+      technologyDomain
+      technologyReadiness
+      requiredTechnology
+      existingImplementation
+
+      validationMethod
+      validationAudience
+      validationSampleSize
+      validationFindings
+      validationEvidence
+
+      research {
+        id
+        type
+        title
+        url
+        source
+        year
+        relevance
+      }
+
+      collaborationNeeds {
+        id
+        role
+        responsibilities
+        skills
+        openings
+        collaborationType
+      }
+
+      funding {
+        needsFunding
+        amount
+        type
+        purpose
+
+        resources {
+          id
+          type
+          description
+        }
+      }
+
       createdAt
       updatedAt
     }
@@ -53,17 +110,65 @@ const SAVE_DRAFT_MUTATION = gql`
       ownerId
       status
       currentStep
+
       title
       description
       category
       stage
+
       problemStatement
       targetUsers
       currentSolution
       problemEvidence
+
       solutionDescription
       howItWorks
       uniqueValue
+
+      technologyApproach
+      technologyDomain
+      technologyReadiness
+      requiredTechnology
+      existingImplementation
+
+      validationMethod
+      validationAudience
+      validationSampleSize
+      validationFindings
+      validationEvidence
+
+      research {
+        id
+        type
+        title
+        url
+        source
+        year
+        relevance
+      }
+
+      collaborationNeeds {
+        id
+        role
+        responsibilities
+        skills
+        openings
+        collaborationType
+      }
+
+      funding {
+        needsFunding
+        amount
+        type
+        purpose
+
+        resources {
+          id
+          type
+          description
+        }
+      }
+
       createdAt
       updatedAt
     }
@@ -123,64 +228,254 @@ type DraftResponse = {
   ownerId: string;
   status: 'DRAFT' | 'PUBLISHED';
   currentStep: number;
+
   title: string;
   description: string;
   category: string;
-  stage: 'Research' | 'Prototype' | 'MVP' | 'Startup';
+
+  stage:
+    | 'Research'
+    | 'Prototype'
+    | 'MVP'
+    | 'Startup';
+
   problemStatement: string;
   targetUsers: string;
   currentSolution: string;
   problemEvidence: string;
+
   solutionDescription: string;
   howItWorks: string;
   uniqueValue: string;
+
+  technologyApproach: string;
+  technologyDomain: string;
+  technologyReadiness: string;
+  requiredTechnology: string;
+  existingImplementation: string;
+
+  validationMethod: string;
+  validationAudience: string;
+  validationSampleSize: string;
+  validationFindings: string;
+  validationEvidence: string;
+
+  research: Array<{
+    id: string;
+    type: string;
+    title: string;
+    url: string | null;
+    source: string | null;
+    year: number | null;
+    relevance: string;
+  }>;
+
+  collaborationNeeds: Array<{
+    id: string;
+    role: string;
+    responsibilities: string;
+    skills: string;
+    openings: string;
+    collaborationType: string;
+  }>;
+
+  funding: {
+    needsFunding: string;
+    amount: string;
+    type: string;
+    purpose: string;
+
+    resources: Array<{
+      id: string;
+      type: string;
+      description: string;
+    }>;
+  };
+
   createdAt: string;
   updatedAt: string;
 };
 
 function isValidStep(
-  step: number,
+  value: number,
 ): boolean {
   return (
-    Number.isInteger(step) &&
-    step >= 1 &&
-    step <= 5
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 5
   );
 }
 
-function draftFromDatabase(
-  savedDraft: DraftResponse,
+function restoreDraft(
+  saved: DraftResponse,
 ): BuildDraft {
+  const research: ResearchItem[] =
+    saved.research.map(
+      (item): ResearchItem => ({
+        id: item.id,
+
+        type:
+          item.type as EvidenceType,
+
+        title:
+          item.title,
+
+        url:
+          item.url ?? '',
+
+        source:
+          item.source ?? '',
+
+        /*
+         * IMPORTANT:
+         * BuildDraft expects year as a string.
+         */
+        year:
+          item.year === null ||
+          item.year === undefined
+            ? ''
+            : String(item.year),
+
+        relevance:
+          item.relevance,
+      }),
+    );
+
+  const collaborationNeeds:
+    CollaborationNeed[] =
+    saved.collaborationNeeds.map(
+      (
+        item,
+      ): CollaborationNeed => ({
+        id:
+          item.id,
+
+        role:
+          item.role,
+
+        responsibilities:
+          item.responsibilities,
+
+        skills:
+          item.skills,
+
+        openings:
+          item.openings,
+
+        collaborationType:
+          item.collaborationType as CollaborationType,
+      }),
+    );
+
+  const resources:
+    ResourceNeed[] =
+    saved.funding.resources.map(
+      (
+        resource,
+      ): ResourceNeed => ({
+        id:
+          resource.id,
+
+        type:
+          resource.type as ResourceType,
+
+        description:
+          resource.description,
+      }),
+    );
+
+  const funding:
+    FundingData = {
+    needsFunding:
+      saved.funding.needsFunding,
+
+    amount:
+      saved.funding.amount,
+
+    type:
+      saved.funding.type as
+        | ''
+        | FundingType,
+
+    purpose:
+      saved.funding.purpose as
+        | ''
+        | FundingPurpose,
+
+    resources,
+  };
+
   return {
     ...initialBuildDraft,
 
-    title: savedDraft.title,
+    title:
+      saved.title,
+
     description:
-      savedDraft.description,
-    category: savedDraft.category,
+      saved.description,
+
+    category:
+      saved.category,
+
     ideaStage:
-      savedDraft.stage,
+      saved.stage,
 
     problemStatement:
-      savedDraft.problemStatement,
+      saved.problemStatement,
 
     targetUsers:
-      savedDraft.targetUsers,
+      saved.targetUsers,
 
     currentSolution:
-      savedDraft.currentSolution,
+      saved.currentSolution,
 
     problemEvidence:
-      savedDraft.problemEvidence,
+      saved.problemEvidence,
 
     solutionDescription:
-      savedDraft.solutionDescription,
+      saved.solutionDescription,
 
     howItWorks:
-      savedDraft.howItWorks,
+      saved.howItWorks,
 
     uniqueValue:
-      savedDraft.uniqueValue,
+      saved.uniqueValue,
+
+    technologyApproach:
+      saved.technologyApproach,
+
+    technologyDomain:
+      saved.technologyDomain,
+
+    technologyReadiness:
+      saved.technologyReadiness,
+
+    requiredTechnology:
+      saved.requiredTechnology,
+
+    existingImplementation:
+      saved.existingImplementation,
+
+    validationMethod:
+      saved.validationMethod,
+
+    validationAudience:
+      saved.validationAudience,
+
+    validationSampleSize:
+      saved.validationSampleSize,
+
+    validationFindings:
+      saved.validationFindings,
+
+    validationEvidence:
+      saved.validationEvidence,
+
+    research,
+
+    collaborationNeeds,
+
+    funding,
   };
 }
 
@@ -238,6 +533,7 @@ export function Build() {
       skip:
         authLoading ||
         !user,
+
       fetchPolicy:
         'network-only',
     },
@@ -255,10 +551,6 @@ export function Build() {
     SAVE_DRAFT_MUTATION,
   );
 
-  /*
-   * Restore the saved draft once the
-   * authentication state and query are ready.
-   */
   useEffect(() => {
     if (
       authLoading ||
@@ -272,42 +564,48 @@ export function Build() {
       !user ||
       draftLoadError
     ) {
-      setHasRestoredDraft(true);
+      setHasRestoredDraft(
+        true,
+      );
+
       return;
     }
 
-    const savedDraft =
+    const saved =
       draftData?.myDraft;
 
-    if (!savedDraft) {
-      setHasRestoredDraft(true);
+    if (!saved) {
+      setHasRestoredDraft(
+        true,
+      );
+
       return;
     }
 
     setDraft(
-      draftFromDatabase(
-        savedDraft,
-      ),
+      restoreDraft(saved),
     );
 
     if (
       isValidStep(
-        savedDraft.currentStep,
+        saved.currentStep,
       )
     ) {
       setCurrentStage(
-        savedDraft.currentStep,
+        saved.currentStep,
       );
     }
 
     setSavedIdeaId(
-      savedDraft.id,
+      saved.id,
     );
-
-    setHasRestoredDraft(true);
 
     setSaveSuccess(
       'Your saved draft has been restored.',
+    );
+
+    setHasRestoredDraft(
+      true,
     );
   }, [
     authLoading,
@@ -363,8 +661,8 @@ export function Build() {
     value: BuildDraft[K],
   ) {
     setDraft(
-      (currentDraft) => ({
-        ...currentDraft,
+      (current) => ({
+        ...current,
         [field]: value,
       }),
     );
@@ -378,24 +676,16 @@ export function Build() {
     setSaveSuccess('');
 
     if (
-      currentStage === 1
+      currentStage === 1 &&
+      !isIdeaComplete
     ) {
-      if (!isIdeaComplete) {
-        return;
-      }
-
-      setCurrentStage(2);
       return;
     }
 
     if (
-      currentStage === 2
+      currentStage === 2 &&
+      !isEvidenceComplete
     ) {
-      if (!isEvidenceComplete) {
-        return;
-      }
-
-      setCurrentStage(3);
       return;
     }
 
@@ -482,27 +772,141 @@ export function Build() {
               uniqueValue:
                 draft.uniqueValue.trim(),
 
+              technologyApproach:
+                draft.technologyApproach.trim(),
+
+              technologyDomain:
+                draft.technologyDomain.trim(),
+
+              technologyReadiness:
+                draft.technologyReadiness.trim(),
+
+              requiredTechnology:
+                draft.requiredTechnology.trim(),
+
+              existingImplementation:
+                draft.existingImplementation.trim(),
+
+              validationMethod:
+                draft.validationMethod.trim(),
+
+              validationAudience:
+                draft.validationAudience.trim(),
+
+              validationSampleSize:
+                draft.validationSampleSize.trim(),
+
+              validationFindings:
+                draft.validationFindings.trim(),
+
+              validationEvidence:
+                draft.validationEvidence.trim(),
+
+              research:
+                draft.research.map(
+                  (item) => ({
+                    type:
+                      item.type,
+
+                    title:
+                      item.title,
+
+                    url:
+                      item.url || null,
+
+                    source:
+                      item.source || null,
+
+                    year:
+                      item.year
+                        ? Number(
+                            item.year,
+                          )
+                        : null,
+
+                    relevance:
+                      item.relevance,
+                  }),
+                ),
+
+              collaborationNeeds:
+                draft.collaborationNeeds.map(
+                  (item) => ({
+                    id:
+                      item.id,
+
+                    role:
+                      item.role,
+
+                    responsibilities:
+                      item.responsibilities,
+
+                    skills:
+                      item.skills,
+
+                    openings:
+                      item.openings,
+
+                    collaborationType:
+                      item.collaborationType,
+                  }),
+                ),
+
+              funding: {
+                needsFunding:
+                  draft.funding.needsFunding,
+
+                amount:
+                  draft.funding.amount,
+
+                type:
+                  draft.funding.type,
+
+                purpose:
+                  draft.funding.purpose,
+
+                resources:
+                  draft.funding.resources.map(
+                    (resource) => ({
+                      id:
+                        resource.id,
+
+                      type:
+                        resource.type,
+
+                      description:
+                        resource.description,
+                    }),
+                  ),
+              },
+
               currentStep:
                 currentStage,
             },
           },
         });
 
-      const savedDraft =
+      const saved =
         result.data?.saveDraft;
 
-      if (!savedDraft) {
+      if (!saved) {
         throw new Error(
           'The server did not return the saved draft.',
         );
       }
 
+      setDraft(
+        restoreDraft(
+          saved,
+        ),
+      );
+
       setSavedIdeaId(
-        savedDraft.id,
+        saved.id,
       );
 
       setSaveSuccess(
-        'Your idea has been saved successfully.',
+        'Your entire idea has been saved successfully.',
       );
     } catch (error) {
       console.error(
@@ -525,7 +929,7 @@ export function Build() {
       | 'Private',
   ) {
     console.log(
-      'Publish requested:',
+      'Publish requested',
       {
         visibility,
         draft,
@@ -535,10 +939,6 @@ export function Build() {
     );
   }
 
-  /*
-   * Wait until authentication and draft
-   * restoration have completed.
-   */
   if (
     authLoading ||
     (
@@ -551,11 +951,13 @@ export function Build() {
       <PageContainer>
         <section className="flex min-h-[60vh] items-center justify-center">
           <div className="text-center">
+
             <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-500" />
 
             <p className="mt-4 text-sm font-medium text-slate-600">
               Loading your Build workspace...
             </p>
+
           </div>
         </section>
       </PageContainer>
@@ -565,7 +967,9 @@ export function Build() {
   return (
     <PageContainer>
       <section className="py-10">
+
         <div className="max-w-3xl">
+
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-600">
             Build
           </p>
@@ -579,10 +983,12 @@ export function Build() {
             building, what problem you are solving,
             and what you need to move forward.
           </p>
+
         </div>
 
         {saveSuccess && (
           <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+
             <div className="font-semibold">
               {saveSuccess}
             </div>
@@ -592,6 +998,7 @@ export function Build() {
                 Draft ID: {savedIdeaId}
               </div>
             )}
+
           </div>
         )}
 
@@ -604,28 +1011,32 @@ export function Build() {
           </div>
         )}
 
-        {/* Progress */}
         <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+
           <div className="flex items-center justify-between">
+
             <div>
+
               <p className="text-sm font-semibold text-slate-950">
-                Stage {currentStage} of{' '}
-                {totalStages}
+                Stage {currentStage} of {totalStages}
               </p>
 
               <p className="mt-1 text-sm text-slate-500">
                 {stages[currentStage - 1]}
               </p>
+
             </div>
 
             <p className="text-sm font-medium text-slate-500">
               {Math.round(
-                (currentStage /
-                  totalStages) *
-                  100,
+                (
+                  currentStage /
+                  totalStages
+                ) * 100,
               )}
               %
             </p>
+
           </div>
 
           <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100">
@@ -633,29 +1044,32 @@ export function Build() {
               className="h-full rounded-full bg-emerald-500 transition-all duration-500"
               style={{
                 width: `${
-                  (currentStage /
-                    totalStages) *
-                  100
+                  (
+                    currentStage /
+                    totalStages
+                  ) * 100
                 }%`,
               }}
             />
           </div>
 
           <div className="mt-6 grid grid-cols-5 gap-2">
+
             {stages.map(
               (
                 stage,
                 index,
               ) => {
-                const stageNumber =
+
+                const number =
                   index + 1;
 
-                const isCurrent =
-                  stageNumber ===
+                const current =
+                  number ===
                   currentStage;
 
-                const isCompleted =
-                  stageNumber <
+                const completed =
+                  number <
                   currentStage;
 
                 return (
@@ -663,48 +1077,49 @@ export function Build() {
                     key={stage}
                     className="text-center"
                   >
+
                     <div
                       className={[
                         'mx-auto flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold',
-                        isCurrent
+                        current
                           ? 'bg-slate-950 text-white'
-                          : isCompleted
+                          : completed
                             ? 'bg-emerald-100 text-emerald-700'
                             : 'bg-slate-100 text-slate-400',
                       ].join(' ')}
                     >
-                      {isCompleted
+                      {completed
                         ? '✓'
-                        : stageNumber}
+                        : number}
                     </div>
 
                     <p
                       className={[
                         'mt-2 text-xs font-medium',
-                        isCurrent
+                        current
                           ? 'text-slate-950'
-                          : isCompleted
+                          : completed
                             ? 'text-emerald-700'
                             : 'text-slate-400',
                       ].join(' ')}
                     >
                       {stage}
                     </p>
+
                   </div>
                 );
               },
             )}
-          </div>
-        </div>
 
-        {/* ========================= */}
-        {/* STAGE 1 */}
-        {/* ========================= */}
+          </div>
+
+        </div>
 
         {currentStage === 1 && (
           <div className="mt-8 space-y-8">
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
                 Part 1
               </p>
@@ -720,6 +1135,7 @@ export function Build() {
               <div className="mt-8 space-y-6">
 
                 <div>
+
                   <label
                     htmlFor="idea-title"
                     className="block text-sm font-semibold text-slate-950"
@@ -745,9 +1161,11 @@ export function Build() {
                   <div className="mt-2 text-right text-xs text-slate-400">
                     {draft.title.length}/100
                   </div>
+
                 </div>
 
                 <div>
+
                   <label
                     htmlFor="idea-description"
                     className="block text-sm font-semibold text-slate-950"
@@ -773,11 +1191,13 @@ export function Build() {
                   <div className="mt-2 text-right text-xs text-slate-400">
                     {draft.description.length}/500
                   </div>
+
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2">
 
                   <div>
+
                     <label
                       htmlFor="idea-category"
                       className="block text-sm font-semibold text-slate-950"
@@ -796,6 +1216,7 @@ export function Build() {
                       }
                       className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                     >
+
                       <option value="">
                         Select a category
                       </option>
@@ -810,10 +1231,13 @@ export function Build() {
                           </option>
                         ),
                       )}
+
                     </select>
+
                   </div>
 
                   <div>
+
                     <label
                       htmlFor="idea-stage"
                       className="block text-sm font-semibold text-slate-950"
@@ -832,6 +1256,7 @@ export function Build() {
                       }
                       className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                     >
+
                       <option value="">
                         Select current stage
                       </option>
@@ -846,10 +1271,13 @@ export function Build() {
                           </option>
                         ),
                       )}
+
                     </select>
+
                   </div>
 
                 </div>
+
               </div>
             </section>
 
@@ -866,6 +1294,7 @@ export function Build() {
               <div className="mt-8 space-y-6">
 
                 <div>
+
                   <label
                     htmlFor="problem-statement"
                     className="block text-sm font-semibold text-slate-950"
@@ -886,9 +1315,11 @@ export function Build() {
                     rows={6}
                     className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
+
                 </div>
 
                 <div>
+
                   <label
                     htmlFor="target-users"
                     className="block text-sm font-semibold text-slate-950"
@@ -909,9 +1340,11 @@ export function Build() {
                     rows={4}
                     className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
+
                 </div>
 
                 <div>
+
                   <label
                     htmlFor="current-solution"
                     className="block text-sm font-semibold text-slate-950"
@@ -932,9 +1365,11 @@ export function Build() {
                     rows={5}
                     className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
+
                 </div>
 
                 <div>
+
                   <label
                     htmlFor="problem-evidence"
                     className="block text-sm font-semibold text-slate-950"
@@ -955,9 +1390,11 @@ export function Build() {
                     rows={6}
                     className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
+
                 </div>
 
               </div>
+
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -973,6 +1410,7 @@ export function Build() {
               <div className="mt-8 space-y-6">
 
                 <div>
+
                   <label
                     htmlFor="solution-description"
                     className="block text-sm font-semibold text-slate-950"
@@ -982,7 +1420,9 @@ export function Build() {
 
                   <textarea
                     id="solution-description"
-                    value={draft.solutionDescription}
+                    value={
+                      draft.solutionDescription
+                    }
                     onChange={(event) =>
                       updateDraft(
                         'solutionDescription',
@@ -993,9 +1433,11 @@ export function Build() {
                     rows={7}
                     className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
+
                 </div>
 
                 <div>
+
                   <label
                     htmlFor="how-it-works"
                     className="block text-sm font-semibold text-slate-950"
@@ -1016,9 +1458,11 @@ export function Build() {
                     rows={7}
                     className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
+
                 </div>
 
                 <div>
+
                   <label
                     htmlFor="unique-value"
                     className="block text-sm font-semibold text-slate-950"
@@ -1039,16 +1483,23 @@ export function Build() {
                     rows={5}
                     className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
+
                 </div>
 
               </div>
+
             </section>
 
             <div className="flex justify-end border-t border-slate-200 pt-6">
+
               <button
                 type="button"
-                onClick={goToNextStage}
-                disabled={!isIdeaComplete}
+                onClick={
+                  goToNextStage
+                }
+                disabled={
+                  !isIdeaComplete
+                }
                 className={[
                   'rounded-xl px-6 py-3.5 text-sm font-semibold transition',
                   isIdeaComplete
@@ -1058,18 +1509,17 @@ export function Build() {
               >
                 Continue to Evidence →
               </button>
+
             </div>
+
           </div>
         )}
-
-        {/* ========================= */}
-        {/* STAGE 2 */}
-        {/* ========================= */}
 
         {currentStage === 2 && (
           <div className="mt-8 space-y-8">
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
                 Evidence
               </p>
@@ -1083,6 +1533,7 @@ export function Build() {
                 and real-world validation that help other
                 people understand and evaluate your idea.
               </p>
+
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -1098,6 +1549,7 @@ export function Build() {
               <div className="mt-8 space-y-6">
 
                 <div>
+
                   <label
                     htmlFor="technology-approach"
                     className="block text-sm font-semibold text-slate-950"
@@ -1107,7 +1559,9 @@ export function Build() {
 
                   <textarea
                     id="technology-approach"
-                    value={draft.technologyApproach}
+                    value={
+                      draft.technologyApproach
+                    }
                     onChange={(event) =>
                       updateDraft(
                         'technologyApproach',
@@ -1118,9 +1572,11 @@ export function Build() {
                     rows={7}
                     className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
+
                 </div>
 
                 <div>
+
                   <label
                     htmlFor="technology-domain"
                     className="block text-sm font-semibold text-slate-950"
@@ -1130,19 +1586,22 @@ export function Build() {
 
                   <input
                     id="technology-domain"
-                    value={draft.technologyDomain}
+                    value={
+                      draft.technologyDomain
+                    }
                     onChange={(event) =>
                       updateDraft(
                         'technologyDomain',
                         event.target.value,
                       )
                     }
-                    maxLength={150}
                     className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
+
                 </div>
 
                 <div>
+
                   <label
                     htmlFor="technology-readiness"
                     className="block text-sm font-semibold text-slate-950"
@@ -1163,6 +1622,7 @@ export function Build() {
                     }
                     className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   >
+
                     <option value="">
                       Select current technology readiness
                     </option>
@@ -1177,10 +1637,13 @@ export function Build() {
                         </option>
                       ),
                     )}
+
                   </select>
+
                 </div>
 
                 <div>
+
                   <label
                     htmlFor="required-technology"
                     className="block text-sm font-semibold text-slate-950"
@@ -1203,9 +1666,11 @@ export function Build() {
                     rows={6}
                     className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
+
                 </div>
 
                 <div>
+
                   <label
                     htmlFor="existing-implementation"
                     className="block text-sm font-semibold text-slate-950"
@@ -1228,14 +1693,20 @@ export function Build() {
                     rows={6}
                     className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
+
                 </div>
 
               </div>
+
             </section>
 
             <ResearchEvidence
-              items={draft.research}
-              onChange={(research) =>
+              items={
+                draft.research
+              }
+              onChange={(
+                research,
+              ) =>
                 updateDraft(
                   'research',
                   research,
@@ -1256,6 +1727,7 @@ export function Build() {
               <div className="mt-8 space-y-6">
 
                 <div>
+
                   <label
                     htmlFor="validation-method"
                     className="block text-sm font-semibold text-slate-950"
@@ -1276,6 +1748,7 @@ export function Build() {
                     }
                     className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   >
+
                     <option value="">
                       Select validation method
                     </option>
@@ -1290,15 +1763,18 @@ export function Build() {
                         </option>
                       ),
                     )}
+
                   </select>
+
                 </div>
 
-                {draft.validationMethod !==
-                  '' &&
+                {draft.validationMethod !== '' &&
                   draft.validationMethod !==
                     'Not validated yet' && (
                     <>
+
                       <div>
+
                         <label
                           htmlFor="validation-audience"
                           className="block text-sm font-semibold text-slate-950"
@@ -1319,9 +1795,11 @@ export function Build() {
                           }
                           className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                         />
+
                       </div>
 
                       <div>
+
                         <label
                           htmlFor="validation-sample-size"
                           className="block text-sm font-semibold text-slate-950"
@@ -1344,9 +1822,11 @@ export function Build() {
                           }
                           className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                         />
+
                       </div>
 
                       <div>
+
                         <label
                           htmlFor="validation-findings"
                           className="block text-sm font-semibold text-slate-950"
@@ -1369,9 +1849,11 @@ export function Build() {
                           rows={6}
                           className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                         />
+
                       </div>
 
                       <div>
+
                         <label
                           htmlFor="validation-evidence"
                           className="block text-sm font-semibold text-slate-950"
@@ -1394,20 +1876,23 @@ export function Build() {
                           rows={6}
                           className="mt-3 w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                         />
+
                       </div>
+
                     </>
                   )}
 
                 {draft.validationMethod ===
                   'Not validated yet' && (
                   <div className="rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-800">
-                    That&apos;s okay. You can
-                    publish an early idea without
-                    validation and add validation
-                    evidence later.
+                    That&apos;s okay. You can publish
+                    an early idea without validation and
+                    add validation evidence later.
                   </div>
                 )}
+
               </div>
+
             </section>
 
             <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-between">
@@ -1424,7 +1909,9 @@ export function Build() {
 
               <button
                 type="button"
-                onClick={goToNextStage}
+                onClick={
+                  goToNextStage
+                }
                 disabled={
                   !isEvidenceComplete
                 }
@@ -1437,13 +1924,11 @@ export function Build() {
               >
                 Continue to Collaboration →
               </button>
+
             </div>
+
           </div>
         )}
-
-        {/* ========================= */}
-        {/* STAGE 3 */}
-        {/* ========================= */}
 
         {currentStage === 3 && (
           <div className="mt-8 space-y-8">
@@ -1460,9 +1945,10 @@ export function Build() {
 
               <p className="mt-4 leading-7 text-slate-600">
                 Tell the community which roles, skills,
-                and collaborators would help you move
-                this idea forward.
+                and collaborators would help you move this
+                idea forward.
               </p>
+
             </section>
 
             <CollaborationNeeds
@@ -1479,7 +1965,7 @@ export function Build() {
               }
             />
 
-            <div className="border-t border-slate-200 pt-6">
+            <div className="flex flex-wrap gap-3 border-t border-slate-200 pt-6">
 
               <button
                 type="button"
@@ -1493,19 +1979,18 @@ export function Build() {
 
               <button
                 type="button"
-                onClick={goToNextStage}
-                className="ml-3 rounded-xl bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                onClick={
+                  goToNextStage
+                }
+                className="rounded-xl bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 Continue to Funding →
               </button>
 
             </div>
+
           </div>
         )}
-
-        {/* ========================= */}
-        {/* STAGE 4 */}
-        {/* ========================= */}
 
         {currentStage === 4 && (
           <div className="mt-8 space-y-8">
@@ -1521,15 +2006,20 @@ export function Build() {
               </h2>
 
               <p className="mt-4 max-w-3xl leading-7 text-slate-600">
-                Funding is only one part of building
-                something new. Tell the community what
-                support could help your idea progress.
+                Funding is only one part of building something
+                new. Tell the community what support could help
+                your idea progress.
               </p>
+
             </section>
 
             <FundingNeeds
-              funding={draft.funding}
-              onChange={(funding) =>
+              funding={
+                draft.funding
+              }
+              onChange={(
+                funding,
+              ) =>
                 updateDraft(
                   'funding',
                   funding,
@@ -1537,7 +2027,7 @@ export function Build() {
               }
             />
 
-            <div className="border-t border-slate-200 pt-6">
+            <div className="flex flex-wrap gap-3 border-t border-slate-200 pt-6">
 
               <button
                 type="button"
@@ -1551,30 +2041,35 @@ export function Build() {
 
               <button
                 type="button"
-                onClick={goToNextStage}
-                className="ml-3 rounded-xl bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                onClick={
+                  goToNextStage
+                }
+                className="rounded-xl bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 Review Idea →
               </button>
 
             </div>
+
           </div>
         )}
-
-        {/* ========================= */}
-        {/* STAGE 5 */}
-        {/* ========================= */}
 
         {currentStage === 5 && (
           <div className="mt-8">
 
             <ReviewStage
-              draft={draft}
-              saving={saving}
+              draft={
+                draft
+              }
+              saving={
+                saving
+              }
               onSaveDraft={() => {
                 void handleSaveDraft();
               }}
-              onPublish={handlePublish}
+              onPublish={
+                handlePublish
+              }
             />
 
             <div className="mt-6 border-t border-slate-200 pt-6">
@@ -1590,8 +2085,10 @@ export function Build() {
               </button>
 
             </div>
+
           </div>
         )}
+
       </section>
     </PageContainer>
   );
