@@ -1,5 +1,7 @@
 import {
+  useCallback,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
@@ -30,6 +32,10 @@ import {
 } from '../types/build';
 
 import { useAuth } from '../context/AuthContext';
+
+/* =========================================================
+   GraphQL
+   ========================================================= */
 
 const MY_DRAFT_QUERY = gql`
   query MyDraft {
@@ -175,6 +181,10 @@ const SAVE_DRAFT_MUTATION = gql`
   }
 `;
 
+/* =========================================================
+   Constants
+   ========================================================= */
+
 const stages = [
   'Idea',
   'Evidence',
@@ -223,10 +233,17 @@ const validationMethods = [
   'Other',
 ];
 
+/* =========================================================
+   Server response types
+   ========================================================= */
+
 type DraftResponse = {
   id: string;
   ownerId: string;
-  status: 'DRAFT' | 'PUBLISHED';
+  status:
+    | 'DRAFT'
+    | 'PUBLISHED';
+
   currentStep: number;
 
   title: string;
@@ -296,13 +313,17 @@ type DraftResponse = {
   updatedAt: string;
 };
 
+/* =========================================================
+   Restore helpers
+   ========================================================= */
+
 function isValidStep(
-  value: number,
+  step: number,
 ): boolean {
   return (
-    Number.isInteger(value) &&
-    value >= 1 &&
-    value <= 5
+    Number.isInteger(step) &&
+    step >= 1 &&
+    step <= 5
   );
 }
 
@@ -311,8 +332,11 @@ function restoreDraft(
 ): BuildDraft {
   const research: ResearchItem[] =
     saved.research.map(
-      (item): ResearchItem => ({
-        id: item.id,
+      (
+        item,
+      ): ResearchItem => ({
+        id:
+          item.id,
 
         type:
           item.type as EvidenceType,
@@ -326,10 +350,6 @@ function restoreDraft(
         source:
           item.source ?? '',
 
-        /*
-         * IMPORTANT:
-         * BuildDraft expects year as a string.
-         */
         year:
           item.year === null ||
           item.year === undefined
@@ -479,6 +499,10 @@ function restoreDraft(
   };
 }
 
+/* =========================================================
+   Component
+   ========================================================= */
+
 export function Build() {
   const {
     user,
@@ -508,16 +532,53 @@ export function Build() {
   ] = useState('');
 
   const [
-    saveSuccess,
-    setSaveSuccess,
-  ] = useState('');
-
-  const [
     savedIdeaId,
     setSavedIdeaId,
   ] = useState<
     string | null
   >(null);
+
+  const [
+    saveStatus,
+    setSaveStatus,
+  ] = useState<
+    | 'idle'
+    | 'saving'
+    | 'saved'
+    | 'error'
+  >('idle');
+
+  /*
+   * Used to debounce autosave.
+   */
+  const autoSaveTimer =
+    useRef<
+      ReturnType<typeof setTimeout> | null
+    >(null);
+
+  /*
+   * Prevent duplicate overlapping saves.
+   */
+  const saveInFlight =
+    useRef(false);
+
+  /*
+   * If a change occurs while a save is in
+   * progress, remember that we need another save.
+   */
+  const saveQueued =
+    useRef(false);
+
+  /*
+   * Tracks whether the current draft has
+   * actually been changed by the user.
+   */
+  const draftHasChanged =
+    useRef(false);
+
+  /* =======================================================
+     Load draft
+     ======================================================= */
 
   const {
     data: draftData,
@@ -540,7 +601,7 @@ export function Build() {
   );
 
   const [
-    saveDraft,
+    saveDraftMutation,
     {
       loading: saving,
     },
@@ -550,6 +611,10 @@ export function Build() {
   }>(
     SAVE_DRAFT_MUTATION,
   );
+
+  /* =======================================================
+     Restore draft once
+     ======================================================= */
 
   useEffect(() => {
     if (
@@ -583,7 +648,9 @@ export function Build() {
     }
 
     setDraft(
-      restoreDraft(saved),
+      restoreDraft(
+        saved,
+      ),
     );
 
     if (
@@ -600,12 +667,12 @@ export function Build() {
       saved.id,
     );
 
-    setSaveSuccess(
-      'Your saved draft has been restored.',
-    );
-
     setHasRestoredDraft(
       true,
+    );
+
+    setSaveStatus(
+      'saved',
     );
   }, [
     authLoading,
@@ -615,6 +682,10 @@ export function Build() {
     hasRestoredDraft,
     user,
   ]);
+
+  /* =======================================================
+     Validation / completion
+     ======================================================= */
 
   const totalStages =
     stages.length;
@@ -654,273 +725,479 @@ export function Build() {
     isTechnologyComplete &&
     isValidationComplete;
 
+  /* =======================================================
+     Draft updater
+     ======================================================= */
+
   function updateDraft<
     K extends keyof BuildDraft
   >(
     field: K,
     value: BuildDraft[K],
   ) {
+    draftHasChanged.current =
+      true;
+
     setDraft(
-      (current) => ({
-        ...current,
+      (currentDraft) => ({
+        ...currentDraft,
         [field]: value,
       }),
     );
 
     setSaveError('');
-    setSaveSuccess('');
+
+    setSaveStatus(
+      'idle',
+    );
   }
 
-  function goToNextStage() {
+  /* =======================================================
+     Save payload
+     ======================================================= */
+
+  const saveCurrentDraft =
+    useCallback(
+      async (
+        draftToSave: BuildDraft,
+        stageToSave: number,
+      ) => {
+        if (!user) {
+          return;
+        }
+
+        if (
+          saveInFlight.current
+        ) {
+          saveQueued.current =
+            true;
+
+          return;
+        }
+
+        saveInFlight.current =
+          true;
+
+        saveQueued.current =
+          false;
+
+        setSaveStatus(
+          'saving',
+        );
+
+        setSaveError('');
+
+        try {
+          const result =
+            await saveDraftMutation({
+              variables: {
+                input: {
+                  title:
+                    draftToSave.title.trim(),
+
+                  description:
+                    draftToSave.description.trim(),
+
+                  category:
+                    draftToSave.category.trim(),
+
+                  stage:
+                    draftToSave.ideaStage as
+                      | 'Research'
+                      | 'Prototype'
+                      | 'MVP'
+                      | 'Startup',
+
+                  problemStatement:
+                    draftToSave.problemStatement.trim(),
+
+                  targetUsers:
+                    draftToSave.targetUsers.trim(),
+
+                  currentSolution:
+                    draftToSave.currentSolution.trim(),
+
+                  problemEvidence:
+                    draftToSave.problemEvidence.trim(),
+
+                  solutionDescription:
+                    draftToSave.solutionDescription.trim(),
+
+                  howItWorks:
+                    draftToSave.howItWorks.trim(),
+
+                  uniqueValue:
+                    draftToSave.uniqueValue.trim(),
+
+                  technologyApproach:
+                    draftToSave.technologyApproach.trim(),
+
+                  technologyDomain:
+                    draftToSave.technologyDomain.trim(),
+
+                  technologyReadiness:
+                    draftToSave.technologyReadiness.trim(),
+
+                  requiredTechnology:
+                    draftToSave.requiredTechnology.trim(),
+
+                  existingImplementation:
+                    draftToSave.existingImplementation.trim(),
+
+                  validationMethod:
+                    draftToSave.validationMethod.trim(),
+
+                  validationAudience:
+                    draftToSave.validationAudience.trim(),
+
+                  validationSampleSize:
+                    draftToSave.validationSampleSize.trim(),
+
+                  validationFindings:
+                    draftToSave.validationFindings.trim(),
+
+                  validationEvidence:
+                    draftToSave.validationEvidence.trim(),
+
+                  research:
+                    draftToSave.research.map(
+                      (item) => ({
+                        type:
+                          item.type,
+
+                        title:
+                          item.title,
+
+                        url:
+                          item.url || null,
+
+                        source:
+                          item.source || null,
+
+                        year:
+                          item.year
+                            ? Number(
+                                item.year,
+                              )
+                            : null,
+
+                        relevance:
+                          item.relevance,
+                      }),
+                    ),
+
+                  collaborationNeeds:
+                    draftToSave.collaborationNeeds.map(
+                      (item) => ({
+                        id:
+                          item.id,
+
+                        role:
+                          item.role,
+
+                        responsibilities:
+                          item.responsibilities,
+
+                        skills:
+                          item.skills,
+
+                        openings:
+                          item.openings,
+
+                        collaborationType:
+                          item.collaborationType,
+                      }),
+                    ),
+
+                  funding: {
+                    needsFunding:
+                      draftToSave.funding.needsFunding,
+
+                    amount:
+                      draftToSave.funding.amount,
+
+                    type:
+                      draftToSave.funding.type,
+
+                    purpose:
+                      draftToSave.funding.purpose,
+
+                    resources:
+                      draftToSave.funding.resources.map(
+                        (resource) => ({
+                          id:
+                            resource.id,
+
+                          type:
+                            resource.type,
+
+                          description:
+                            resource.description,
+                        }),
+                      ),
+                  },
+
+                  currentStep:
+                    stageToSave,
+                },
+              },
+            });
+
+          const saved =
+            result.data?.saveDraft;
+
+          if (!saved) {
+            throw new Error(
+              'The server did not return the saved draft.',
+            );
+          }
+
+          setSavedIdeaId(
+            saved.id,
+          );
+
+          setSaveStatus(
+            'saved',
+          );
+
+          /*
+           * Important:
+           * Do not replace the current React draft
+           * with the server response here.
+           *
+           * That prevents autosave from triggering
+           * itself over and over again.
+           */
+        } catch (error) {
+          console.error(
+            'Failed to save draft:',
+            error,
+          );
+
+          setSaveStatus(
+            'error',
+          );
+
+          setSaveError(
+            error instanceof Error
+              ? error.message
+              : 'Unable to save your draft.',
+          );
+        } finally {
+          saveInFlight.current =
+            false;
+
+          /*
+           * A user may have typed more while the
+           * previous request was running.
+           *
+           * In that case queue one more save using
+           * the latest React state.
+           */
+          if (
+            saveQueued.current
+          ) {
+            saveQueued.current =
+              false;
+
+            window.setTimeout(
+              () => {
+                void saveCurrentDraft(
+                  draft,
+                  currentStage,
+                );
+              },
+              100,
+            );
+          }
+        }
+      },
+      [
+        user,
+        saveDraftMutation,
+        draft,
+        currentStage,
+      ],
+    );
+
+  /* =======================================================
+     Autosave
+     ======================================================= */
+
+  useEffect(() => {
+    if (
+      !user ||
+      !hasRestoredDraft ||
+      !draftHasChanged.current
+    ) {
+      return;
+    }
+
+    if (
+      autoSaveTimer.current
+    ) {
+      clearTimeout(
+        autoSaveTimer.current,
+      );
+    }
+
+    autoSaveTimer.current =
+      setTimeout(
+        () => {
+          void saveCurrentDraft(
+            draft,
+            currentStage,
+          );
+        },
+        1500,
+      );
+
+    return () => {
+      if (
+        autoSaveTimer.current
+      ) {
+        clearTimeout(
+          autoSaveTimer.current,
+        );
+      }
+    };
+  }, [
+    draft,
+    currentStage,
+    user,
+    hasRestoredDraft,
+    saveCurrentDraft,
+  ]);
+
+  /* =======================================================
+     Save immediately when changing stage
+     ======================================================= */
+
+  async function saveBeforeChangingStage(
+    nextStage: number,
+  ) {
+    if (
+      !user ||
+      !hasRestoredDraft
+    ) {
+      return;
+    }
+
+    /*
+     * Cancel the debounce timer because we're
+     * explicitly saving now.
+     */
+    if (
+      autoSaveTimer.current
+    ) {
+      clearTimeout(
+        autoSaveTimer.current,
+      );
+    }
+
+    await saveCurrentDraft(
+      draft,
+      nextStage,
+    );
+  }
+
+  /* =======================================================
+     Navigation
+     ======================================================= */
+
+  async function goToNextStage() {
     setSaveError('');
-    setSaveSuccess('');
 
     if (
-      currentStage === 1 &&
-      !isIdeaComplete
+      currentStage === 1
     ) {
-      return;
+      if (!isIdeaComplete) {
+        return;
+      }
     }
 
     if (
-      currentStage === 2 &&
-      !isEvidenceComplete
+      currentStage === 2
     ) {
-      return;
+      if (!isEvidenceComplete) {
+        return;
+      }
     }
 
     if (
-      currentStage <
+      currentStage >=
       totalStages
     ) {
-      setCurrentStage(
-        (stage) =>
-          stage + 1,
-      );
+      return;
     }
+
+    const nextStage =
+      currentStage + 1;
+
+    setCurrentStage(
+      nextStage,
+    );
+
+    await saveBeforeChangingStage(
+      nextStage,
+    );
   }
 
-  function goToPreviousStage() {
+  async function goToPreviousStage() {
     setSaveError('');
-    setSaveSuccess('');
 
     if (
-      currentStage > 1
+      currentStage <= 1
     ) {
-      setCurrentStage(
-        (stage) =>
-          stage - 1,
-      );
+      return;
     }
+
+    const previousStage =
+      currentStage - 1;
+
+    setCurrentStage(
+      previousStage,
+    );
+
+    await saveBeforeChangingStage(
+      previousStage,
+    );
   }
 
-  async function handleSaveDraft() {
-    setSaveError('');
-    setSaveSuccess('');
+  /* =======================================================
+     Manual save
+     ======================================================= */
 
+  async function handleSaveDraft() {
     if (!user) {
       setSaveError(
         'You must be signed in to save an idea.',
       );
 
+      setSaveStatus(
+        'error',
+      );
+
       return;
     }
 
-    if (saving) {
-      return;
-    }
-
-    try {
-      const result =
-        await saveDraft({
-          variables: {
-            input: {
-              title:
-                draft.title.trim(),
-
-              description:
-                draft.description.trim(),
-
-              category:
-                draft.category.trim(),
-
-              stage:
-                draft.ideaStage as
-                  | 'Research'
-                  | 'Prototype'
-                  | 'MVP'
-                  | 'Startup',
-
-              problemStatement:
-                draft.problemStatement.trim(),
-
-              targetUsers:
-                draft.targetUsers.trim(),
-
-              currentSolution:
-                draft.currentSolution.trim(),
-
-              problemEvidence:
-                draft.problemEvidence.trim(),
-
-              solutionDescription:
-                draft.solutionDescription.trim(),
-
-              howItWorks:
-                draft.howItWorks.trim(),
-
-              uniqueValue:
-                draft.uniqueValue.trim(),
-
-              technologyApproach:
-                draft.technologyApproach.trim(),
-
-              technologyDomain:
-                draft.technologyDomain.trim(),
-
-              technologyReadiness:
-                draft.technologyReadiness.trim(),
-
-              requiredTechnology:
-                draft.requiredTechnology.trim(),
-
-              existingImplementation:
-                draft.existingImplementation.trim(),
-
-              validationMethod:
-                draft.validationMethod.trim(),
-
-              validationAudience:
-                draft.validationAudience.trim(),
-
-              validationSampleSize:
-                draft.validationSampleSize.trim(),
-
-              validationFindings:
-                draft.validationFindings.trim(),
-
-              validationEvidence:
-                draft.validationEvidence.trim(),
-
-              research:
-                draft.research.map(
-                  (item) => ({
-                    type:
-                      item.type,
-
-                    title:
-                      item.title,
-
-                    url:
-                      item.url || null,
-
-                    source:
-                      item.source || null,
-
-                    year:
-                      item.year
-                        ? Number(
-                            item.year,
-                          )
-                        : null,
-
-                    relevance:
-                      item.relevance,
-                  }),
-                ),
-
-              collaborationNeeds:
-                draft.collaborationNeeds.map(
-                  (item) => ({
-                    id:
-                      item.id,
-
-                    role:
-                      item.role,
-
-                    responsibilities:
-                      item.responsibilities,
-
-                    skills:
-                      item.skills,
-
-                    openings:
-                      item.openings,
-
-                    collaborationType:
-                      item.collaborationType,
-                  }),
-                ),
-
-              funding: {
-                needsFunding:
-                  draft.funding.needsFunding,
-
-                amount:
-                  draft.funding.amount,
-
-                type:
-                  draft.funding.type,
-
-                purpose:
-                  draft.funding.purpose,
-
-                resources:
-                  draft.funding.resources.map(
-                    (resource) => ({
-                      id:
-                        resource.id,
-
-                      type:
-                        resource.type,
-
-                      description:
-                        resource.description,
-                    }),
-                  ),
-              },
-
-              currentStep:
-                currentStage,
-            },
-          },
-        });
-
-      const saved =
-        result.data?.saveDraft;
-
-      if (!saved) {
-        throw new Error(
-          'The server did not return the saved draft.',
-        );
-      }
-
-      setDraft(
-        restoreDraft(
-          saved,
-        ),
-      );
-
-      setSavedIdeaId(
-        saved.id,
-      );
-
-      setSaveSuccess(
-        'Your entire idea has been saved successfully.',
-      );
-    } catch (error) {
-      console.error(
-        'Failed to save draft:',
-        error,
-      );
-
-      setSaveError(
-        error instanceof Error
-          ? error.message
-          : 'Unable to save your draft.',
+    if (
+      autoSaveTimer.current
+    ) {
+      clearTimeout(
+        autoSaveTimer.current,
       );
     }
+
+    await saveCurrentDraft(
+      draft,
+      currentStage,
+    );
   }
+
+  /* =======================================================
+     Publish
+     ======================================================= */
 
   function handlePublish(
     visibility:
@@ -929,7 +1206,7 @@ export function Build() {
       | 'Private',
   ) {
     console.log(
-      'Publish requested',
+      'Publish requested:',
       {
         visibility,
         draft,
@@ -938,6 +1215,10 @@ export function Build() {
       },
     );
   }
+
+  /* =======================================================
+     Loading
+     ======================================================= */
 
   if (
     authLoading ||
@@ -964,6 +1245,10 @@ export function Build() {
     );
   }
 
+  /* =======================================================
+     UI
+     ======================================================= */
+
   return (
     <PageContainer>
       <section className="py-10">
@@ -986,30 +1271,50 @@ export function Build() {
 
         </div>
 
-        {saveSuccess && (
-          <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        {/* Save status */}
 
-            <div className="font-semibold">
-              {saveSuccess}
+        <div className="mt-5 flex items-center gap-3">
+
+          {saveStatus === 'saving' && (
+            <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-slate-500" />
+              Saving...
             </div>
+          )}
 
-            {savedIdeaId && (
-              <div className="mt-1 text-xs text-emerald-600">
-                Draft ID: {savedIdeaId}
-              </div>
-            )}
+          {saveStatus === 'saved' && (
+            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
+              <span className="text-sm">
+                ✓
+              </span>
+              Saved just now
+            </div>
+          )}
 
-          </div>
-        )}
+          {saveStatus === 'error' && (
+            <div className="inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700">
+              Could not save
+            </div>
+          )}
+
+        </div>
 
         {saveError && (
           <div
             role="alert"
-            className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
           >
             {saveError}
           </div>
         )}
+
+        {savedIdeaId && (
+          <p className="mt-3 text-xs text-slate-400">
+            Draft ID: {savedIdeaId}
+          </p>
+        )}
+
+        {/* Progress */}
 
         <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 
@@ -1018,7 +1323,8 @@ export function Build() {
             <div>
 
               <p className="text-sm font-semibold text-slate-950">
-                Stage {currentStage} of {totalStages}
+                Stage {currentStage} of{' '}
+                {totalStages}
               </p>
 
               <p className="mt-1 text-sm text-slate-500">
@@ -1040,6 +1346,7 @@ export function Build() {
           </div>
 
           <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100">
+
             <div
               className="h-full rounded-full bg-emerald-500 transition-all duration-500"
               style={{
@@ -1051,6 +1358,7 @@ export function Build() {
                 }%`,
               }}
             />
+
           </div>
 
           <div className="mt-6 grid grid-cols-5 gap-2">
@@ -1061,15 +1369,15 @@ export function Build() {
                 index,
               ) => {
 
-                const number =
+                const stageNumber =
                   index + 1;
 
-                const current =
-                  number ===
+                const isCurrent =
+                  stageNumber ===
                   currentStage;
 
-                const completed =
-                  number <
+                const isCompleted =
+                  stageNumber <
                   currentStage;
 
                 return (
@@ -1081,24 +1389,24 @@ export function Build() {
                     <div
                       className={[
                         'mx-auto flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold',
-                        current
+                        isCurrent
                           ? 'bg-slate-950 text-white'
-                          : completed
+                          : isCompleted
                             ? 'bg-emerald-100 text-emerald-700'
                             : 'bg-slate-100 text-slate-400',
                       ].join(' ')}
                     >
-                      {completed
+                      {isCompleted
                         ? '✓'
-                        : number}
+                        : stageNumber}
                     </div>
 
                     <p
                       className={[
                         'mt-2 text-xs font-medium',
-                        current
+                        isCurrent
                           ? 'text-slate-950'
-                          : completed
+                          : isCompleted
                             ? 'text-emerald-700'
                             : 'text-slate-400',
                       ].join(' ')}
@@ -1114,6 +1422,10 @@ export function Build() {
           </div>
 
         </div>
+
+        {/* =================================================
+            STAGE 1
+            ================================================= */}
 
         {currentStage === 1 && (
           <div className="mt-8 space-y-8">
@@ -1279,6 +1591,7 @@ export function Build() {
                 </div>
 
               </div>
+
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -1447,7 +1760,9 @@ export function Build() {
 
                   <textarea
                     id="how-it-works"
-                    value={draft.howItWorks}
+                    value={
+                      draft.howItWorks
+                    }
                     onChange={(event) =>
                       updateDraft(
                         'howItWorks',
@@ -1472,7 +1787,9 @@ export function Build() {
 
                   <textarea
                     id="unique-value"
-                    value={draft.uniqueValue}
+                    value={
+                      draft.uniqueValue
+                    }
                     onChange={(event) =>
                       updateDraft(
                         'uniqueValue',
@@ -1494,9 +1811,9 @@ export function Build() {
 
               <button
                 type="button"
-                onClick={
-                  goToNextStage
-                }
+                onClick={() => {
+                  void goToNextStage();
+                }}
                 disabled={
                   !isIdeaComplete
                 }
@@ -1514,6 +1831,10 @@ export function Build() {
 
           </div>
         )}
+
+        {/* =================================================
+            STAGE 2
+            ================================================= */}
 
         {currentStage === 2 && (
           <div className="mt-8 space-y-8">
@@ -1595,6 +1916,7 @@ export function Build() {
                         event.target.value,
                       )
                     }
+                    maxLength={150}
                     className="mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-950 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
                   />
 
@@ -1768,7 +2090,8 @@ export function Build() {
 
                 </div>
 
-                {draft.validationMethod !== '' &&
+                {draft.validationMethod !==
+                  '' &&
                   draft.validationMethod !==
                     'Not validated yet' && (
                     <>
@@ -1899,9 +2222,9 @@ export function Build() {
 
               <button
                 type="button"
-                onClick={
-                  goToPreviousStage
-                }
+                onClick={() => {
+                  void goToPreviousStage();
+                }}
                 className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
               >
                 ← Back to Idea
@@ -1909,9 +2232,9 @@ export function Build() {
 
               <button
                 type="button"
-                onClick={
-                  goToNextStage
-                }
+                onClick={() => {
+                  void goToNextStage();
+                }}
                 disabled={
                   !isEvidenceComplete
                 }
@@ -1930,6 +2253,10 @@ export function Build() {
           </div>
         )}
 
+        {/* =================================================
+            STAGE 3
+            ================================================= */}
+
         {currentStage === 3 && (
           <div className="mt-8 space-y-8">
 
@@ -1945,8 +2272,8 @@ export function Build() {
 
               <p className="mt-4 leading-7 text-slate-600">
                 Tell the community which roles, skills,
-                and collaborators would help you move this
-                idea forward.
+                and collaborators would help you move
+                this idea forward.
               </p>
 
             </section>
@@ -1969,9 +2296,9 @@ export function Build() {
 
               <button
                 type="button"
-                onClick={
-                  goToPreviousStage
-                }
+                onClick={() => {
+                  void goToPreviousStage();
+                }}
                 className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
               >
                 ← Back to Evidence
@@ -1979,9 +2306,9 @@ export function Build() {
 
               <button
                 type="button"
-                onClick={
-                  goToNextStage
-                }
+                onClick={() => {
+                  void goToNextStage();
+                }}
                 className="rounded-xl bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 Continue to Funding →
@@ -1991,6 +2318,10 @@ export function Build() {
 
           </div>
         )}
+
+        {/* =================================================
+            STAGE 4
+            ================================================= */}
 
         {currentStage === 4 && (
           <div className="mt-8 space-y-8">
@@ -2031,9 +2362,9 @@ export function Build() {
 
               <button
                 type="button"
-                onClick={
-                  goToPreviousStage
-                }
+                onClick={() => {
+                  void goToPreviousStage();
+                }}
                 className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
               >
                 ← Back to Collaboration
@@ -2041,9 +2372,9 @@ export function Build() {
 
               <button
                 type="button"
-                onClick={
-                  goToNextStage
-                }
+                onClick={() => {
+                  void goToNextStage();
+                }}
                 className="rounded-xl bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 Review Idea →
@@ -2054,6 +2385,10 @@ export function Build() {
           </div>
         )}
 
+        {/* =================================================
+            STAGE 5
+            ================================================= */}
+
         {currentStage === 5 && (
           <div className="mt-8">
 
@@ -2062,7 +2397,9 @@ export function Build() {
                 draft
               }
               saving={
-                saving
+                saving ||
+                saveStatus ===
+                  'saving'
               }
               onSaveDraft={() => {
                 void handleSaveDraft();
@@ -2076,9 +2413,9 @@ export function Build() {
 
               <button
                 type="button"
-                onClick={
-                  goToPreviousStage
-                }
+                onClick={() => {
+                  void goToPreviousStage();
+                }}
                 className="rounded-xl border border-slate-300 px-6 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
               >
                 ← Back to Funding
