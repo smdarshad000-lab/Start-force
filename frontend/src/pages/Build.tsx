@@ -6,6 +6,10 @@ import {
 } from 'react';
 
 import {
+  useSearchParams,
+} from 'react-router-dom';
+
+import {
   gql,
   useMutation,
   useQuery,
@@ -37,9 +41,9 @@ import { useAuth } from '../context/AuthContext';
    GraphQL
    ========================================================= */
 
-const MY_DRAFT_QUERY = gql`
-  query MyDraft {
-    myDraft {
+const MY_IDEAS_QUERY = gql`
+  query MyIdeas {
+    myIdeas {
       id
       ownerId
       status
@@ -509,6 +513,33 @@ export function Build() {
     loading: authLoading,
   } = useAuth();
 
+
+  const [
+    searchParams,
+    setSearchParams,
+  ] = useSearchParams();
+
+  const selectedIdeaId =
+    searchParams.get('ideaId');
+
+  const ideaIdRef =
+    useRef<string | null>(
+      selectedIdeaId,
+    );
+
+  const latestDraftRef =
+    useRef<BuildDraft>(
+      initialBuildDraft,
+    );
+
+  const latestStageRef =
+    useRef(1);
+
+  const lastRouteIdeaIdRef =
+    useRef<string | null | undefined>(
+      undefined,
+    );
+
   const [
     currentStage,
     setCurrentStage,
@@ -585,20 +616,20 @@ export function Build() {
     loading: draftLoading,
     error: draftLoadError,
   } = useQuery<{
-    myDraft:
-      | DraftResponse
-      | null;
+    myIdeas: DraftResponse[];
   }>(
-    MY_DRAFT_QUERY,
+    MY_IDEAS_QUERY,
     {
       skip:
         authLoading ||
-        !user,
+        !user ||
+        !selectedIdeaId,
 
       fetchPolicy:
         'network-only',
     },
   );
+
 
   const [
     saveDraftMutation,
@@ -613,22 +644,92 @@ export function Build() {
   );
 
   /* =======================================================
-     Restore draft once
+     Switch between a new idea and an existing idea
+     ======================================================= */
+
+  useEffect(() => {
+    if (authLoading || !user) {
+      return;
+    }
+
+    if (
+      lastRouteIdeaIdRef.current ===
+      selectedIdeaId
+    ) {
+      return;
+    }
+
+    lastRouteIdeaIdRef.current =
+      selectedIdeaId;
+
+    ideaIdRef.current =
+      selectedIdeaId;
+
+    latestDraftRef.current =
+      initialBuildDraft;
+
+    latestStageRef.current =
+      1;
+
+    draftHasChanged.current =
+      false;
+
+    saveQueued.current =
+      false;
+
+    if (
+      autoSaveTimer.current
+    ) {
+      clearTimeout(
+        autoSaveTimer.current,
+      );
+    }
+
+    setDraft(
+      initialBuildDraft,
+    );
+
+    setCurrentStage(1);
+
+    setSaveError('');
+
+    setSaveStatus('idle');
+
+    setSavedIdeaId(
+      selectedIdeaId,
+    );
+
+    setHasRestoredDraft(
+      !selectedIdeaId,
+    );
+  }, [
+    authLoading,
+    user,
+    selectedIdeaId,
+  ]);
+
+  /* =======================================================
+     Restore the selected existing idea
      ======================================================= */
 
   useEffect(() => {
     if (
       authLoading ||
+      !user ||
+      !selectedIdeaId ||
       draftLoading ||
       hasRestoredDraft
     ) {
       return;
     }
 
-    if (
-      !user ||
-      draftLoadError
-    ) {
+    if (draftLoadError) {
+      setSaveError(
+        'Unable to load this idea.',
+      );
+
+      setSaveStatus('error');
+
       setHasRestoredDraft(
         true,
       );
@@ -637,9 +738,19 @@ export function Build() {
     }
 
     const saved =
-      draftData?.myDraft;
+      draftData?.myIdeas.find(
+        (idea) =>
+          idea.id ===
+          selectedIdeaId,
+      ) ?? null;
 
     if (!saved) {
+      setSaveError(
+        'This idea could not be found in your account.',
+      );
+
+      setSaveStatus('error');
+
       setHasRestoredDraft(
         true,
       );
@@ -647,21 +758,26 @@ export function Build() {
       return;
     }
 
-    setDraft(
-      restoreDraft(
-        saved,
-      ),
-    );
+    ideaIdRef.current =
+      saved.id;
 
-    if (
+    latestDraftRef.current =
+      restoreDraft(saved);
+
+    latestStageRef.current =
       isValidStep(
         saved.currentStep,
       )
-    ) {
-      setCurrentStage(
-        saved.currentStep,
-      );
-    }
+        ? saved.currentStep
+        : 1;
+
+    setDraft(
+      latestDraftRef.current,
+    );
+
+    setCurrentStage(
+      latestStageRef.current,
+    );
 
     setSavedIdeaId(
       saved.id,
@@ -674,13 +790,19 @@ export function Build() {
     setSaveStatus(
       'saved',
     );
+
+    setSaveError('');
+
+    draftHasChanged.current =
+      false;
   }, [
     authLoading,
+    user,
+    selectedIdeaId,
     draftLoading,
     draftData,
     draftLoadError,
     hasRestoredDraft,
-    user,
   ]);
 
   /* =======================================================
@@ -724,6 +846,16 @@ export function Build() {
   const isEvidenceComplete =
     isTechnologyComplete &&
     isValidationComplete;
+
+  useEffect(() => {
+    latestDraftRef.current =
+      draft;
+  }, [draft]);
+
+  useEffect(() => {
+    latestStageRef.current =
+      currentStage;
+  }, [currentStage]);
 
   /* =======================================================
      Draft updater
@@ -792,6 +924,9 @@ export function Build() {
             await saveDraftMutation({
               variables: {
                 input: {
+                  ideaId:
+                    ideaIdRef.current,
+
                   title:
                     draftToSave.title.trim(),
 
@@ -952,13 +1087,32 @@ export function Build() {
             );
           }
 
+          ideaIdRef.current =
+            saved.id;
+
           setSavedIdeaId(
             saved.id,
           );
 
+          if (
+            !selectedIdeaId
+          ) {
+            setSearchParams(
+              {
+                ideaId: saved.id,
+              },
+              {
+                replace: true,
+              },
+            );
+          }
+
           setSaveStatus(
             'saved',
           );
+
+          draftHasChanged.current =
+            false;
 
           /*
            * Important:
@@ -1003,8 +1157,8 @@ export function Build() {
             window.setTimeout(
               () => {
                 void saveCurrentDraft(
-                  draft,
-                  currentStage,
+                  latestDraftRef.current,
+                  latestStageRef.current,
                 );
               },
               100,

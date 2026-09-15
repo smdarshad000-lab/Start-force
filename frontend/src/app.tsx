@@ -15,6 +15,7 @@ import { Build } from './pages/Build';
 import { Messages } from './pages/Messages';
 import { Profile } from './pages/Profile';
 import { IdeaDetails } from './pages/IdeaDetails';
+import { MyIdeas } from './pages/MyIdeas';
 
 import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
@@ -50,6 +51,11 @@ export function App() {
             <Route
               path="/build"
               element={<Build />}
+            />
+
+            <Route
+              path="/my-ideas"
+              element={<MyIdeas />}
             />
 
             <Route

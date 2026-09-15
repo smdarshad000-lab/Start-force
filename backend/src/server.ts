@@ -2,14 +2,17 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import pino from 'pino';
+
 import {
   ApolloServer,
 } from '@apollo/server';
+
 import {
   expressMiddleware,
 } from '@as-integrations/express5';
 
 import { env } from './config/env.js';
+
 import {
   db,
   pool,
@@ -40,6 +43,138 @@ const logger = pino({
 
 const app = express();
 
+/*
+ * ---------------------------------------------------------
+ * CORS
+ * ---------------------------------------------------------
+ *
+ * Production:
+ *   Use the exact configured origin.
+ *
+ * Development:
+ *   Allow localhost on Vite development ports.
+ *
+ * This prevents the application from breaking when Vite
+ * automatically moves from 5173 to 5174, 5175, etc.
+ */
+
+function isAllowedOrigin(
+  origin: string | undefined,
+): boolean {
+  if (!origin) {
+    return true;
+  }
+
+  if (
+    env.nodeEnv ===
+    'production'
+  ) {
+    return (
+      origin ===
+      env.corsOrigin
+    );
+  }
+
+  try {
+    const url =
+      new URL(origin);
+
+    const isLocalhost =
+      url.hostname ===
+        'localhost' ||
+      url.hostname ===
+        '127.0.0.1';
+
+    const isVitePort =
+      url.port === '' ||
+      (
+        Number(url.port) >=
+          5173 &&
+        Number(url.port) <=
+          5199
+      );
+
+    if (
+      isLocalhost &&
+      isVitePort
+    ) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return (
+    origin ===
+    env.corsOrigin
+  );
+}
+
+app.use(
+  helmet(),
+);
+
+app.use(
+  cors({
+    origin: (
+      requestOrigin,
+      callback,
+    ) => {
+      if (
+        isAllowedOrigin(
+          requestOrigin,
+        )
+      ) {
+        callback(
+          null,
+          true,
+        );
+
+        return;
+      }
+
+      callback(
+        new Error(
+          `Origin not allowed by CORS: ${
+            requestOrigin ??
+            'unknown'
+          }`,
+        ),
+      );
+    },
+
+    credentials: true,
+  }),
+);
+
+/*
+ * ---------------------------------------------------------
+ * Health
+ * ---------------------------------------------------------
+ */
+
+app.get(
+  '/health',
+  (
+    _req,
+    res,
+  ) => {
+    res.json({
+      status: 'ok',
+      service:
+        'start-force-api',
+      timestamp:
+        new Date().toISOString(),
+    });
+  },
+);
+
+/*
+ * ---------------------------------------------------------
+ * Apollo
+ * ---------------------------------------------------------
+ */
+
 const apollo =
   new ApolloServer({
     typeDefs,
@@ -52,34 +187,15 @@ logger.info(
   'Apollo Server started',
 );
 
-app.use(
-  helmet(),
-);
-
-app.use(
-  cors({
-    origin: env.corsOrigin,
-    credentials: true,
-  }),
-);
-
-app.get(
-  '/health',
-  (
-    _req,
-    res,
-  ) => {
-    res.json({
-      status: 'ok',
-      service: 'start-force-api',
-      timestamp:
-        new Date().toISOString(),
-    });
-  },
-);
+/*
+ * ---------------------------------------------------------
+ * GraphQL
+ * ---------------------------------------------------------
+ */
 
 app.use(
   '/graphql',
+
   express.json(),
 
   expressMiddleware(
@@ -93,11 +209,15 @@ app.use(
           req.headers.cookie
             ?.split(';')
             .map(
-              (value) =>
+              (
+                value,
+              ) =>
                 value.trim(),
             )
             .find(
-              (value) =>
+              (
+                value,
+              ) =>
                 value.startsWith(
                   `${SESSION_COOKIE_NAME}=`,
                 ),
@@ -110,6 +230,7 @@ app.use(
         return {
           db,
           pool,
+
           sessionToken,
 
           setSessionCookie: (
@@ -120,11 +241,21 @@ app.use(
               token,
               {
                 httpOnly: true,
-                sameSite: 'lax',
+
+                /*
+                 * "lax" works for local development
+                 * because frontend/backend are both on
+                 * localhost.
+                 */
+                sameSite:
+                  'lax',
+
                 secure:
                   env.nodeEnv ===
                   'production',
+
                 path: '/',
+
                 maxAge:
                   1000 *
                   60 *
@@ -140,10 +271,14 @@ app.use(
               SESSION_COOKIE_NAME,
               {
                 httpOnly: true,
-                sameSite: 'lax',
+
+                sameSite:
+                  'lax',
+
                 secure:
                   env.nodeEnv ===
                   'production',
+
                 path: '/',
               },
             );
@@ -153,6 +288,12 @@ app.use(
     },
   ),
 );
+
+/*
+ * ---------------------------------------------------------
+ * Start server
+ * ---------------------------------------------------------
+ */
 
 app.listen(
   env.port,

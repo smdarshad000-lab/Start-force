@@ -9,6 +9,11 @@ import {
 
 type DatabasePool = typeof pool;
 
+type DatabaseQueryClient = Pick<
+  DatabasePool,
+  'query'
+>;
+
 type GraphQLContext = {
   pool: DatabasePool;
   sessionToken?: string;
@@ -55,6 +60,7 @@ type FundingInput = {
 };
 
 type SaveDraftInput = {
+  ideaId?: string | null;
   title: string;
   description: string;
   category: string;
@@ -144,6 +150,60 @@ function normaliseFunding(
           )
         : [],
   };
+}
+
+async function getIdeaById(
+  database: DatabaseQueryClient,
+  ideaId: string,
+) {
+  const result = await database.query(
+    `
+      SELECT
+        id,
+        owner_id AS "ownerId",
+        status,
+        current_step AS "currentStep",
+
+        title,
+        description,
+        category,
+        stage,
+
+        problem_statement AS "problemStatement",
+        target_users AS "targetUsers",
+        current_solution AS "currentSolution",
+        problem_evidence AS "problemEvidence",
+
+        solution_description AS "solutionDescription",
+        how_it_works AS "howItWorks",
+        unique_value AS "uniqueValue",
+
+        technology_approach AS "technologyApproach",
+        technology_domain AS "technologyDomain",
+        technology_readiness AS "technologyReadiness",
+        required_technology AS "requiredTechnology",
+        existing_implementation AS "existingImplementation",
+
+        validation_method AS "validationMethod",
+        validation_audience AS "validationAudience",
+        validation_sample_size AS "validationSampleSize",
+        validation_findings AS "validationFindings",
+        validation_evidence AS "validationEvidence",
+
+        collaboration_needs AS "collaborationNeeds",
+        funding,
+
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
+
+      FROM ideas
+      WHERE id = $1
+      LIMIT 1
+    `,
+    [ideaId],
+  );
+
+  return result.rows[0] ?? null;
 }
 
 export const typeDefs = `
@@ -307,6 +367,8 @@ export const typeDefs = `
   }
 
   input SaveDraftInput {
+    ideaId: ID
+
     title: String!
     description: String!
     category: String!
@@ -347,6 +409,7 @@ export const typeDefs = `
     databaseStatus: DatabaseStatus!
     currentUser: User
     myDraft: Idea
+    myIdeas: [Idea!]!
     users: [User!]!
     ideas: [Idea!]!
     idea(id: ID!): Idea
@@ -475,6 +538,72 @@ export const resolvers = {
         );
 
       return result.rows[0] ?? null;
+    },
+
+    myIdeas: async (
+      _parent: unknown,
+      _args: unknown,
+      context: GraphQLContext,
+    ) => {
+      const currentUser =
+        await getCurrentUser(
+          context.pool,
+          context.sessionToken,
+        );
+
+      if (!currentUser) {
+        return [];
+      }
+
+      const result =
+        await context.pool.query(
+          `
+            SELECT
+              id,
+              owner_id AS "ownerId",
+              status,
+              current_step AS "currentStep",
+
+              title,
+              description,
+              category,
+              stage,
+
+              problem_statement AS "problemStatement",
+              target_users AS "targetUsers",
+              current_solution AS "currentSolution",
+              problem_evidence AS "problemEvidence",
+
+              solution_description AS "solutionDescription",
+              how_it_works AS "howItWorks",
+              unique_value AS "uniqueValue",
+
+              technology_approach AS "technologyApproach",
+              technology_domain AS "technologyDomain",
+              technology_readiness AS "technologyReadiness",
+              required_technology AS "requiredTechnology",
+              existing_implementation AS "existingImplementation",
+
+              validation_method AS "validationMethod",
+              validation_audience AS "validationAudience",
+              validation_sample_size AS "validationSampleSize",
+              validation_findings AS "validationFindings",
+              validation_evidence AS "validationEvidence",
+
+              collaboration_needs AS "collaborationNeeds",
+              funding,
+
+              created_at AS "createdAt",
+              updated_at AS "updatedAt"
+
+            FROM ideas
+            WHERE owner_id = $1
+            ORDER BY updated_at DESC
+          `,
+          [currentUser.id],
+        );
+
+      return result.rows;
     },
 
     users: async (
@@ -724,30 +853,33 @@ export const resolvers = {
           'BEGIN',
         );
 
-        const existing =
-          await client.query(
-            `
-              SELECT id
-              FROM ideas
-              WHERE owner_id = $1
-                AND status = 'DRAFT'
-              ORDER BY updated_at DESC
-              LIMIT 1
-            `,
-            [currentUser.id],
-          );
-
         let ideaId: string;
-        let idea: Record<
-          string,
-          unknown
-        >;
 
-        if (
-          existing.rows[0]?.id
-        ) {
-          ideaId =
-            existing.rows[0].id;
+        if (input.ideaId) {
+          const ownership =
+            await client.query(
+              `
+                SELECT id
+                FROM ideas
+                WHERE id = $1
+                  AND owner_id = $2
+                LIMIT 1
+              `,
+              [
+                input.ideaId,
+                currentUser.id,
+              ],
+            );
+
+          if (!ownership.rows[0]?.id) {
+            throw new Error(
+              'This idea does not exist or does not belong to your account.',
+            );
+          }
+
+          ideaId = String(
+            ownership.rows[0].id,
+          );
 
           const updateResult =
             await client.query(
@@ -789,45 +921,6 @@ export const resolvers = {
 
                 WHERE id = $25
                   AND owner_id = $26
-                  AND status = 'DRAFT'
-
-                RETURNING
-                  id,
-                  owner_id AS "ownerId",
-                  status,
-                  current_step AS "currentStep",
-
-                  title,
-                  description,
-                  category,
-                  stage,
-
-                  problem_statement AS "problemStatement",
-                  target_users AS "targetUsers",
-                  current_solution AS "currentSolution",
-                  problem_evidence AS "problemEvidence",
-
-                  solution_description AS "solutionDescription",
-                  how_it_works AS "howItWorks",
-                  unique_value AS "uniqueValue",
-
-                  technology_approach AS "technologyApproach",
-                  technology_domain AS "technologyDomain",
-                  technology_readiness AS "technologyReadiness",
-                  required_technology AS "requiredTechnology",
-                  existing_implementation AS "existingImplementation",
-
-                  validation_method AS "validationMethod",
-                  validation_audience AS "validationAudience",
-                  validation_sample_size AS "validationSampleSize",
-                  validation_findings AS "validationFindings",
-                  validation_evidence AS "validationEvidence",
-
-                  collaboration_needs AS "collaborationNeeds",
-                  funding,
-
-                  created_at AS "createdAt",
-                  updated_at AS "updatedAt"
               `,
               [
                 currentStep,
@@ -866,16 +959,11 @@ export const resolvers = {
               ],
             );
 
-          if (
-            !updateResult.rows[0]
-          ) {
+          if (!updateResult.rowCount) {
             throw new Error(
-              'Unable to update your draft.',
+              'Unable to update your idea.',
             );
           }
-
-          idea =
-            updateResult.rows[0];
         } else {
           const insertResult =
             await client.query(
@@ -950,43 +1038,7 @@ export const resolvers = {
                   $25
                 )
 
-                RETURNING
-                  id,
-                  owner_id AS "ownerId",
-                  status,
-                  current_step AS "currentStep",
-
-                  title,
-                  description,
-                  category,
-                  stage,
-
-                  problem_statement AS "problemStatement",
-                  target_users AS "targetUsers",
-                  current_solution AS "currentSolution",
-                  problem_evidence AS "problemEvidence",
-
-                  solution_description AS "solutionDescription",
-                  how_it_works AS "howItWorks",
-                  unique_value AS "uniqueValue",
-
-                  technology_approach AS "technologyApproach",
-                  technology_domain AS "technologyDomain",
-                  technology_readiness AS "technologyReadiness",
-                  required_technology AS "requiredTechnology",
-                  existing_implementation AS "existingImplementation",
-
-                  validation_method AS "validationMethod",
-                  validation_audience AS "validationAudience",
-                  validation_sample_size AS "validationSampleSize",
-                  validation_findings AS "validationFindings",
-                  validation_evidence AS "validationEvidence",
-
-                  collaboration_needs AS "collaborationNeeds",
-                  funding,
-
-                  created_at AS "createdAt",
-                  updated_at AS "updatedAt"
+                RETURNING id
               `,
               [
                 currentUser.id,
@@ -1023,25 +1075,19 @@ export const resolvers = {
               ],
             );
 
-          if (
-            !insertResult.rows[0]
-          ) {
+          if (!insertResult.rows[0]?.id) {
             throw new Error(
-              'Unable to create your draft.',
+              'Unable to create your idea.',
             );
           }
 
-          idea =
-            insertResult.rows[0];
-
-          ideaId =
-            String(
-              idea.id,
-            );
+          ideaId = String(
+            insertResult.rows[0].id,
+          );
         }
 
         /*
-         * Replace the draft's research rows
+         * Replace this idea's research rows
          * with the latest version.
          */
         await client.query(
@@ -1088,11 +1134,23 @@ export const resolvers = {
           );
         }
 
+        const savedIdea =
+          await getIdeaById(
+            client,
+            ideaId,
+          );
+
+        if (!savedIdea) {
+          throw new Error(
+            'The idea was saved, but could not be loaded again.',
+          );
+        }
+
         await client.query(
           'COMMIT',
         );
 
-        return idea;
+        return savedIdea;
       } catch (error) {
         await client.query(
           'ROLLBACK',

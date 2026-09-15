@@ -10,9 +10,9 @@ import {
 import { PageContainer } from '../components/layout/PageContainer';
 import { useAuth } from '../context/AuthContext';
 
-const MY_DRAFT_QUERY = gql`
-  query MyDraft {
-    myDraft {
+const MY_IDEAS_QUERY = gql`
+  query MyIdeas {
+    myIdeas {
       id
       status
       currentStep
@@ -25,20 +25,66 @@ const MY_DRAFT_QUERY = gql`
   }
 `;
 
-type MyDraft = {
+type Idea = {
   id: string;
-  status: 'DRAFT' | 'PUBLISHED';
+
+  status:
+    | 'DRAFT'
+    | 'PUBLISHED';
+
   currentStep: number;
+
   title: string;
+
   description: string;
+
   category: string;
+
   stage:
     | 'Research'
     | 'Prototype'
     | 'MVP'
     | 'Startup';
+
   updatedAt: string;
 };
+
+function getProgress(
+  currentStep: number,
+): number {
+  const safeStep =
+    Math.min(
+      5,
+      Math.max(
+        1,
+        currentStep,
+      ),
+    );
+
+  return Math.round(
+    (
+      safeStep /
+      5
+    ) * 100,
+  );
+}
+
+function formatDate(
+  value: string,
+): string {
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
+    return 'Unknown';
+  }
+
+  return date.toLocaleString();
+}
 
 export function MyIdeas() {
   const {
@@ -51,9 +97,9 @@ export function MyIdeas() {
     loading,
     error,
   } = useQuery<{
-    myDraft: MyDraft | null;
+    myIdeas: Idea[];
   }>(
-    MY_DRAFT_QUERY,
+    MY_IDEAS_QUERY,
     {
       skip:
         authLoading ||
@@ -94,14 +140,14 @@ export function MyIdeas() {
             Sign in to view your ideas
           </h1>
 
-          <p className="mx-auto mt-4 max-w-xl text-slate-600">
-            Your saved ideas and drafts are available
+          <p className="mx-auto mt-4 max-w-xl leading-7 text-slate-600">
+            Your saved ideas are available
             from your Start-Force account.
           </p>
 
           <Link
             to="/sign-in"
-            className="mt-8 inline-flex rounded-xl bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white hover:bg-slate-800"
+            className="mt-8 inline-flex rounded-xl bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             Sign in
           </Link>
@@ -122,7 +168,7 @@ export function MyIdeas() {
               Unable to load your ideas
             </h1>
 
-            <p className="mt-2 text-sm">
+            <p className="mt-2 text-sm leading-6">
               {error.message}
             </p>
 
@@ -133,44 +179,61 @@ export function MyIdeas() {
     );
   }
 
-  const draft =
-    data?.myDraft ?? null;
+  const ideas =
+    data?.myIdeas ?? [];
 
   return (
     <PageContainer>
       <section className="py-12">
 
-        <div className="max-w-3xl">
+        {/* Header */}
 
-          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-600">
-            My Ideas
-          </p>
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
 
-          <h1 className="mt-3 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
-            Your ideas, all in one place.
-          </h1>
+          <div className="max-w-3xl">
 
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-            Continue building your ideas or start
-            something completely new.
-          </p>
+            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-emerald-600">
+              My Ideas
+            </p>
+
+            <h1 className="mt-3 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+              Your ideas, all in one place.
+            </h1>
+
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
+              Keep track of ideas in progress,
+              continue unfinished work, and revisit
+              everything you have saved.
+            </p>
+
+          </div>
+
+          <Link
+            to="/build"
+            className="inline-flex shrink-0 items-center justify-center rounded-xl bg-slate-950 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            + New idea
+          </Link>
 
         </div>
 
-        {!draft ? (
-          <section className="mt-10 rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+        {/* Empty state */}
 
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
+        {ideas.length === 0 ? (
+          <section className="mt-10 rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm sm:p-14">
+
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-3xl text-emerald-600">
               +
             </div>
 
-            <h2 className="mt-5 text-2xl font-bold text-slate-950">
+            <h2 className="mt-6 text-2xl font-bold text-slate-950">
               No ideas yet
             </h2>
 
             <p className="mx-auto mt-3 max-w-lg leading-7 text-slate-600">
-              Start building your first idea and it
-              will automatically appear here once saved.
+              Start building your first idea and
+              it will appear here automatically once
+              it is saved.
             </p>
 
             <Link
@@ -182,136 +245,180 @@ export function MyIdeas() {
 
           </section>
         ) : (
-          <section className="mt-10">
+          /* Idea list */
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <section className="mt-10 space-y-6">
 
-              <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+            {ideas.map(
+              (idea) => {
+                const progress =
+                  getProgress(
+                    idea.currentStep,
+                  );
 
-                <div className="min-w-0">
+                const buildUrl =
+                  `/build?ideaId=${encodeURIComponent(
+                    idea.id,
+                  )}`;
 
-                  <div className="flex flex-wrap items-center gap-2">
+                return (
+                  <article
+                    key={idea.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md sm:p-8"
+                  >
 
-                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-700">
-                      Draft
-                    </span>
+                    {/* Top section */}
 
-                    {draft.category && (
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                        {draft.category}
-                      </span>
-                    )}
+                    <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
 
-                  </div>
+                      <div className="min-w-0">
 
-                  <h2 className="mt-4 break-words text-2xl font-bold text-slate-950">
-                    {draft.title ||
-                      'Untitled idea'}
-                  </h2>
+                        <div className="flex flex-wrap items-center gap-2">
 
-                  <p className="mt-3 max-w-2xl leading-7 text-slate-600">
-                    {draft.description ||
-                      'Continue building this idea to add more detail.'}
-                  </p>
+                          <span
+                            className={[
+                              'rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide',
+                              idea.status ===
+                                'PUBLISHED'
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-amber-50 text-amber-700',
+                            ].join(' ')}
+                          >
+                            {idea.status ===
+                            'PUBLISHED'
+                              ? 'Published'
+                              : 'Draft'}
+                          </span>
 
-                </div>
+                          {idea.category && (
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                              {idea.category}
+                            </span>
+                          )}
 
-                <Link
-                  to="/build"
-                  className="shrink-0 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-                >
-                  Continue building →
-                </Link>
+                        </div>
 
-              </div>
+                        <h2 className="mt-4 break-words text-2xl font-bold text-slate-950">
+                          {idea.title ||
+                            'Untitled idea'}
+                        </h2>
 
-              <div className="mt-8 border-t border-slate-200 pt-6">
+                        <p className="mt-3 max-w-3xl leading-7 text-slate-600">
+                          {idea.description ||
+                            'Continue building this idea to add more detail.'}
+                        </p>
 
-                <div className="grid gap-6 sm:grid-cols-3">
+                      </div>
 
-                  <div>
+                      <div className="flex shrink-0 flex-col gap-3 sm:flex-row xl:flex-col">
 
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Current step
-                    </p>
+                        <Link
+                          to={
+                            buildUrl
+                          }
+                          className="inline-flex items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        >
+                          Continue building →
+                        </Link>
 
-                    <p className="mt-2 text-lg font-bold text-slate-950">
-                      Step {draft.currentStep} of 5
-                    </p>
+                        <Link
+                          to={
+                            `/idea/${encodeURIComponent(
+                              idea.id,
+                            )}`
+                          }
+                          className="inline-flex items-center justify-center rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
+                        >
+                          View idea
+                        </Link>
 
-                  </div>
+                      </div>
 
-                  <div>
+                    </div>
 
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Stage
-                    </p>
+                    {/* Metadata */}
 
-                    <p className="mt-2 text-lg font-bold text-slate-950">
-                      {draft.stage}
-                    </p>
+                    <div className="mt-8 border-t border-slate-200 pt-6">
 
-                  </div>
+                      <div className="grid gap-6 sm:grid-cols-3">
 
-                  <div>
+                        <div>
 
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Last saved
-                    </p>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                            Current step
+                          </p>
 
-                    <p className="mt-2 text-sm font-semibold text-slate-950">
-                      {new Date(
-                        draft.updatedAt,
-                      ).toLocaleString()}
-                    </p>
+                          <p className="mt-2 text-lg font-bold text-slate-950">
+                            Step{' '}
+                            {idea.currentStep}{' '}
+                            of 5
+                          </p>
 
-                  </div>
+                        </div>
 
-                </div>
+                        <div>
 
-              </div>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                            Stage
+                          </p>
 
-              <div className="mt-7">
+                          <p className="mt-2 text-lg font-bold text-slate-950">
+                            {idea.stage}
+                          </p>
 
-                <div className="flex items-center justify-between text-sm">
+                        </div>
 
-                  <span className="font-semibold text-slate-700">
-                    Progress
-                  </span>
+                        <div>
 
-                  <span className="font-medium text-slate-500">
-                    {Math.round(
-                      (
-                        draft.currentStep /
-                        5
-                      ) *
-                        100,
-                    )}
-                    %
-                  </span>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                            Last saved
+                          </p>
 
-                </div>
+                          <p className="mt-2 text-sm font-semibold text-slate-950">
+                            {formatDate(
+                              idea.updatedAt,
+                            )}
+                          </p>
 
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                        </div>
 
-                  <div
-                    className="h-full rounded-full bg-emerald-500 transition-all"
-                    style={{
-                      width: `${
-                        (
-                          draft.currentStep /
-                          5
-                        ) *
-                        100
-                      }%`,
-                    }}
-                  />
+                      </div>
 
-                </div>
+                    </div>
 
-              </div>
+                    {/* Progress */}
 
-            </div>
+                    <div className="mt-7">
+
+                      <div className="flex items-center justify-between text-sm">
+
+                        <span className="font-semibold text-slate-700">
+                          Progress
+                        </span>
+
+                        <span className="font-medium text-slate-500">
+                          {progress}%
+                        </span>
+
+                      </div>
+
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+
+                        <div
+                          className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                          style={{
+                            width: `${progress}%`,
+                          }}
+                        />
+
+                      </div>
+
+                    </div>
+
+                  </article>
+                );
+              },
+            )}
 
           </section>
         )}
