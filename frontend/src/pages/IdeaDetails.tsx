@@ -454,7 +454,7 @@ export function IdeaDetails() {
 
               </div>
 
-              <h1 className="mt-5 break-words text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-5 break-word text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
                 {idea.title ||
                   'Untitled idea'}
               </h1>

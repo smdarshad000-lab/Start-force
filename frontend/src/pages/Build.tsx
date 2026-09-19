@@ -6,6 +6,7 @@ import {
 } from 'react';
 
 import {
+  useNavigate,
   useSearchParams,
 } from 'react-router-dom';
 
@@ -182,6 +183,12 @@ const SAVE_DRAFT_MUTATION = gql`
       createdAt
       updatedAt
     }
+  }
+`;
+
+const PUBLISH_IDEA_MUTATION = gql`
+  mutation PublishIdea($id: ID!) {
+    publishIdea(id: $id)
   }
 `;
 
@@ -515,6 +522,9 @@ export function Build() {
   } = useAuth();
 
 
+  const navigate =
+    useNavigate();
+
   const [
     searchParams,
     setSearchParams,
@@ -642,6 +652,17 @@ export function Build() {
       DraftResponse;
   }>(
     SAVE_DRAFT_MUTATION,
+  );
+
+  const [
+    publishIdea,
+    {
+      loading: publishing,
+    },
+  ] = useMutation<{
+    publishIdea: boolean;
+  }>(
+    PUBLISH_IDEA_MUTATION,
   );
 
   /* =======================================================
@@ -1354,21 +1375,70 @@ export function Build() {
      Publish
      ======================================================= */
 
-  function handlePublish(
-    visibility:
+  async function handlePublish(
+    _visibility:
       | 'Public'
       | 'Limited'
       | 'Private',
   ) {
-    console.log(
-      'Publish requested:',
-      {
-        visibility,
-        draft,
-        userId:
-          user?.id,
-      },
-    );
+    setSaveError('');
+    setSaveStatus('idle');
+
+    if (!user) {
+      setSaveError(
+        'You must be signed in to publish an idea.',
+      );
+      setSaveStatus('error');
+      return;
+    }
+
+    try {
+      if (!ideaIdRef.current) {
+        await saveCurrentDraft(
+          latestDraftRef.current,
+          latestStageRef.current,
+        );
+      }
+
+      const ideaId =
+        ideaIdRef.current;
+
+      if (!ideaId) {
+        throw new Error(
+          'Save your idea before publishing it.',
+        );
+      }
+
+      await publishIdea({
+        variables: {
+          id: ideaId,
+        },
+      });
+
+      setSaveStatus('saved');
+      setSaveError('');
+      setSaveSuccess(
+        'Your idea has been published successfully.',
+      );
+
+      window.setTimeout(() => {
+        navigate('/my-ideas', {
+          replace: true,
+        });
+      }, 800);
+    } catch (error) {
+      console.error(
+        'Failed to publish idea:',
+        error,
+      );
+
+      setSaveStatus('error');
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to publish your idea.',
+      );
+    }
   }
 
   /* =======================================================
@@ -1385,7 +1455,7 @@ export function Build() {
   ) {
     return (
       <PageContainer>
-        <section className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex min-h-[60vh] items-center justify-center">
           <div className="text-center">
 
             <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-500" />
@@ -1395,7 +1465,7 @@ export function Build() {
             </p>
 
           </div>
-        </section>
+        </div>
       </PageContainer>
     );
   }
@@ -1406,7 +1476,7 @@ export function Build() {
 
   return (
     <PageContainer>
-      <section className="py-10">
+      <div className="py-10">
 
         <div className="max-w-3xl">
 
@@ -1434,6 +1504,13 @@ export function Build() {
             <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
               <span className="h-2 w-2 animate-pulse rounded-full bg-slate-500" />
               Saving...
+            </div>
+          )}
+
+          {publishing && (
+            <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-slate-500" />
+              Publishing...
             </div>
           )}
 
@@ -1585,7 +1662,7 @@ export function Build() {
         {currentStage === 1 && (
           <div className="mt-8 space-y-8">
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
                 Part 1
@@ -1747,9 +1824,9 @@ export function Build() {
 
               </div>
 
-            </section>
+            </div>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
                 Part 2
@@ -1863,9 +1940,9 @@ export function Build() {
 
               </div>
 
-            </section>
+            </div>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
                 Part 3
@@ -1960,7 +2037,7 @@ export function Build() {
 
               </div>
 
-            </section>
+            </div>
 
             <div className="flex justify-end border-t border-slate-200 pt-6">
 
@@ -1994,7 +2071,7 @@ export function Build() {
         {currentStage === 2 && (
           <div className="mt-8 space-y-8">
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
                 Evidence
@@ -2010,9 +2087,9 @@ export function Build() {
                 people understand and evaluate your idea.
               </p>
 
-            </section>
+            </div>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
                 Technology
@@ -2175,7 +2252,7 @@ export function Build() {
 
               </div>
 
-            </section>
+            </div>
 
             <ResearchEvidence
               items={
@@ -2191,7 +2268,7 @@ export function Build() {
               }
             />
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
                 Validation
@@ -2371,7 +2448,7 @@ export function Build() {
 
               </div>
 
-            </section>
+            </div>
 
             <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-between">
 
@@ -2415,7 +2492,7 @@ export function Build() {
         {currentStage === 3 && (
           <div className="mt-8 space-y-8">
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
                 Collaboration
@@ -2431,7 +2508,7 @@ export function Build() {
                 this idea forward.
               </p>
 
-            </section>
+            </div>
 
             <CollaborationNeeds
               items={
@@ -2481,7 +2558,7 @@ export function Build() {
         {currentStage === 4 && (
           <div className="mt-8 space-y-8">
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
                 Funding
@@ -2497,7 +2574,7 @@ export function Build() {
                 your idea progress.
               </p>
 
-            </section>
+            </div>
 
             <FundingNeeds
               funding={
@@ -2581,7 +2658,7 @@ export function Build() {
           </div>
         )}
 
-      </section>
+      </div>
     </PageContainer>
   );
 }

@@ -424,6 +424,7 @@ export const typeDefs = `
     saveDraft(input: SaveDraftInput!): Idea!
     archiveIdea(id: ID!): Boolean!
     restoreIdea(id: ID!): Boolean!
+    publishIdea(id: ID!): Boolean!
   }
 `;
 
@@ -954,6 +955,46 @@ export const resolvers = {
       if (!result.rowCount) {
         throw new Error(
           'Archived idea not found or it is already active.',
+        );
+      }
+
+      return true;
+    },
+
+    publishIdea: async (
+      _parent: unknown,
+      args: { id: string },
+      context: GraphQLContext,
+    ) => {
+      const currentUser =
+        await getCurrentUser(
+          context.pool,
+          context.sessionToken,
+        );
+
+      if (!currentUser) {
+        throw new Error(
+          'You must be signed in to publish an idea.',
+        );
+      }
+
+      const result =
+        await context.pool.query(
+          `
+            UPDATE ideas
+            SET
+              status = 'PUBLISHED',
+              updated_at = NOW()
+            WHERE id = $1
+              AND owner_id = $2
+              AND status <> 'ARCHIVED'
+          `,
+          [args.id, currentUser.id],
+        );
+
+      if (!result.rowCount) {
+        throw new Error(
+          'Idea not found or it cannot be published.',
         );
       }
 
