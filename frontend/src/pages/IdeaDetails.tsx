@@ -1,457 +1,951 @@
-import { Link, useParams } from 'react-router-dom';
+import {
+  gql,
+  useQuery,
+} from '@apollo/client';
+
+import {
+  Link,
+  useParams,
+} from 'react-router-dom';
 
 import { PageContainer } from '../components/layout/PageContainer';
-import { ideas } from '../data/ideas';
+
+const IDEA_QUERY = gql`
+  query IdeaDetails($id: ID!) {
+    idea(id: $id) {
+      id
+      ownerId
+      status
+      currentStep
+
+      title
+      description
+      category
+      stage
+
+      problemStatement
+      targetUsers
+      currentSolution
+      problemEvidence
+
+      solutionDescription
+      howItWorks
+      uniqueValue
+
+      technologyApproach
+      technologyDomain
+      technologyReadiness
+      requiredTechnology
+      existingImplementation
+
+      validationMethod
+      validationAudience
+      validationSampleSize
+      validationFindings
+      validationEvidence
+
+      research {
+        id
+        type
+        title
+        url
+        source
+        year
+        relevance
+      }
+
+      collaborationNeeds {
+        id
+        role
+        responsibilities
+        skills
+        openings
+        collaborationType
+      }
+
+      funding {
+        needsFunding
+        amount
+        type
+        purpose
+
+        resources {
+          id
+          type
+          description
+        }
+      }
+
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+type ResearchItem = {
+  id: string;
+  type: string;
+  title: string;
+  url: string | null;
+  source: string | null;
+  year: number | null;
+  relevance: string;
+};
+
+type CollaborationNeed = {
+  id: string;
+  role: string;
+  responsibilities: string;
+  skills: string;
+  openings: string;
+  collaborationType: string;
+};
+
+type ResourceNeed = {
+  id: string;
+  type: string;
+  description: string;
+};
+
+type FundingData = {
+  needsFunding: string;
+  amount: string;
+  type: string;
+  purpose: string;
+  resources: ResourceNeed[];
+};
+
+type Idea = {
+  id: string;
+  ownerId: string;
+
+  status:
+    | 'DRAFT'
+    | 'PUBLISHED'
+    | 'ARCHIVED';
+
+  currentStep: number;
+
+  title: string;
+  description: string;
+  category: string;
+  stage:
+    | 'Research'
+    | 'Prototype'
+    | 'MVP'
+    | 'Startup';
+
+  problemStatement: string;
+  targetUsers: string;
+  currentSolution: string;
+  problemEvidence: string;
+
+  solutionDescription: string;
+  howItWorks: string;
+  uniqueValue: string;
+
+  technologyApproach: string;
+  technologyDomain: string;
+  technologyReadiness: string;
+  requiredTechnology: string;
+  existingImplementation: string;
+
+  validationMethod: string;
+  validationAudience: string;
+  validationSampleSize: string;
+  validationFindings: string;
+  validationEvidence: string;
+
+  research: ResearchItem[];
+
+  collaborationNeeds: CollaborationNeed[];
+
+  funding: FundingData;
+
+  createdAt: string;
+  updatedAt: string;
+};
+
+function formatDate(
+  value: string,
+): string {
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
+    return 'Unknown';
+  }
+
+  return date.toLocaleString();
+}
+
+function getStatusLabel(
+  status: Idea['status'],
+): string {
+  if (
+    status === 'PUBLISHED'
+  ) {
+    return 'Published';
+  }
+
+  if (
+    status === 'ARCHIVED'
+  ) {
+    return 'Archived';
+  }
+
+  return 'Draft';
+}
+
+function getStatusClasses(
+  status: Idea['status'],
+): string {
+  if (
+    status === 'PUBLISHED'
+  ) {
+    return 'bg-emerald-50 text-emerald-700';
+  }
+
+  if (
+    status === 'ARCHIVED'
+  ) {
+    return 'bg-slate-100 text-slate-600';
+  }
+
+  return 'bg-amber-50 text-amber-700';
+}
+
+function InfoBlock({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+        {label}
+      </p>
+
+      <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+        {value || 'Not provided'}
+      </p>
+    </div>
+  );
+}
+
+function DetailCard({
+  title,
+  eyebrow,
+  children,
+}: {
+  title: string;
+  eyebrow: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+        {eyebrow}
+      </p>
+
+      <h2 className="mt-2 text-2xl font-bold text-slate-950">
+        {title}
+      </h2>
+
+      <div className="mt-6">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export function IdeaDetails() {
-  const { id } = useParams();
+  const {
+    id,
+  } = useParams<{
+    id: string;
+  }>();
 
-  const idea = ideas.find((item) => item.id === id);
+  const {
+    data,
+    loading,
+    error,
+  } = useQuery<{
+    idea: Idea | null;
+  }>(
+    IDEA_QUERY,
+    {
+      variables: {
+        id: id ?? '',
+      },
 
-  if (!idea) {
+      skip: !id,
+
+      fetchPolicy:
+        'network-only',
+    },
+  );
+
+  if (loading) {
     return (
       <PageContainer>
-        <section className="flex min-h-[60vh] items-center justify-center py-12">
-          <div className="max-w-xl text-center">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-              Idea not found
+        <div className="flex min-h-[60vh] items-center justify-center py-12">
+          <div className="text-center">
+
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-500" />
+
+            <p className="mt-4 text-sm font-medium text-slate-600">
+              Loading idea details...
             </p>
 
-            <h1 className="mt-4 text-4xl font-bold tracking-tight text-slate-950">
-              We couldn&apos;t find that idea.
-            </h1>
-
-            <p className="mt-4 text-lg leading-8 text-slate-600">
-              The idea may have been removed, or the URL may be incorrect.
-            </p>
-
-            <Link
-              to="/discover"
-              className="mt-8 inline-flex rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              Back to Discover
-            </Link>
           </div>
-        </section>
+        </div>
       </PageContainer>
     );
   }
 
+  if (error) {
+    return (
+      <PageContainer>
+        <div className="py-12">
+
+          <div className="mx-auto max-w-2xl rounded-2xl border border-red-200 bg-red-50 p-6">
+
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-red-600">
+              Idea Details
+            </p>
+
+            <h1 className="mt-3 text-2xl font-bold text-red-900">
+              Unable to load this idea
+            </h1>
+
+            <p className="mt-3 text-sm leading-7 text-red-700">
+              {error.message}
+            </p>
+
+            <Link
+              to="/my-ideas"
+              className="mt-6 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              Back to My Ideas
+            </Link>
+
+          </div>
+
+        </div>
+      </PageContainer>
+    );
+  }
+
+  const idea =
+    data?.idea ?? null;
+
+  if (!idea) {
+    return (
+      <PageContainer>
+        <div className="flex min-h-[60vh] items-center justify-center py-12">
+          <div className="max-w-xl text-center">
+
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
+              Idea Details
+            </p>
+
+            <h1 className="mt-4 text-4xl font-bold tracking-tight text-slate-950">
+              Idea not found
+            </h1>
+
+            <p className="mt-4 text-lg leading-8 text-slate-600">
+              The idea may have been removed or the
+              link may no longer be valid.
+            </p>
+
+            <Link
+              to="/my-ideas"
+              className="mt-8 inline-flex rounded-xl bg-slate-950 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              Back to My Ideas
+            </Link>
+
+          </div>
+        </div>
+      </PageContainer>
+    );
+  }
+
+  const progress = Math.round(
+    (
+      Math.min(
+        5,
+        Math.max(
+          1,
+          idea.currentStep,
+        ),
+      ) / 5
+    ) * 100,
+  );
+
   return (
     <PageContainer>
-      <section className="py-10">
-        {/* Back */}
-        <Link
-          to="/discover"
-          className="inline-flex items-center text-sm font-medium text-slate-500 transition hover:text-slate-950"
-        >
-          ← Back to Discover
-        </Link>
+      <div className="py-10">
 
-        {/* Hero */}
-        <div className="mt-10 max-w-4xl">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-              {idea.category}
-            </span>
+        {/* Top navigation */}
 
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-              {idea.stage}
-            </span>
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-4">
 
-          <h1 className="mt-6 text-4xl font-bold tracking-tight text-slate-950 sm:text-6xl">
-            {idea.title}
-          </h1>
+          <Link
+            to="/my-ideas"
+            className="inline-flex items-center text-sm font-semibold text-slate-500 transition hover:text-slate-950"
+          >
+            ← Back to My Ideas
+          </Link>
 
-          <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-600">
-            {idea.description}
-          </p>
+          {idea.status !==
+            'ARCHIVED' && (
+            <Link
+              to={`/build?ideaId=${encodeURIComponent(
+                idea.id,
+              )}`}
+              className="inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              Continue building →
+            </Link>
+          )}
+
         </div>
 
-        {/* Scores */}
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <ScoreCard
-            label="Innovation"
-            value={idea.innovation}
-          />
+        {/* Idea overview */}
 
-          <ScoreCard
-            label="Market potential"
-            value={idea.marketPotential}
-          />
+        <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-10">
 
-          <ScoreCard
-            label="Validation"
-            value={idea.validation}
-          />
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
 
-          <ScoreCard
-            label="Team strength"
-            value={idea.teamStrength}
-          />
-        </div>
+            <div className="min-w-0 max-w-4xl">
 
-        {/* Main content */}
-        <div className="mt-12 grid gap-8 lg:grid-cols-[1.5fr_1fr]">
-          {/* Left column */}
-          <div className="space-y-8">
-            {/* Problem */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-                The Problem
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
 
-              <h2 className="mt-3 text-2xl font-bold text-slate-950">
-                What problem is this idea solving?
-              </h2>
-
-              <p className="mt-4 leading-7 text-slate-600">
-                Farmers often need to identify crop diseases quickly, but
-                access to agricultural experts can be limited. Delayed
-                identification can lead to crop loss, unnecessary treatment,
-                and lower productivity.
-              </p>
-            </section>
-
-            {/* Solution */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-                The Solution
-              </p>
-
-              <h2 className="mt-3 text-2xl font-bold text-slate-950">
-                How the idea approaches the problem
-              </h2>
-
-              <p className="mt-4 leading-7 text-slate-600">
-                The platform uses computer vision to analyze crop images and
-                identify potential diseases. The goal is to give farmers an
-                early indication and help them decide when expert support is
-                required.
-              </p>
-            </section>
-
-            {/* Technology */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-                Technology
-              </p>
-
-              <h2 className="mt-3 text-2xl font-bold text-slate-950">
-                Technology and approach
-              </h2>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700">
-                  Computer Vision
+                <span
+                  className={[
+                    'rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide',
+                    getStatusClasses(
+                      idea.status,
+                    ),
+                  ].join(' ')}
+                >
+                  {getStatusLabel(
+                    idea.status,
+                  )}
                 </span>
 
-                <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700">
-                  Machine Learning
+                {idea.category && (
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                    {idea.category}
+                  </span>
+                )}
+
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                  {idea.stage}
                 </span>
 
-                <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700">
-                  Mobile Applications
-                </span>
-
-                <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700">
-                  Image Classification
-                </span>
-              </div>
-            </section>
-
-            {/* Roadmap */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-                Roadmap
-              </p>
-
-              <h2 className="mt-3 text-2xl font-bold text-slate-950">
-                Current development stage
-              </h2>
-
-              <div className="mt-6 space-y-5">
-                <RoadmapStep
-                  number="01"
-                  title="Research"
-                  description="Collect datasets, research disease patterns, and validate the problem."
-                  completed
-                />
-
-                <RoadmapStep
-                  number="02"
-                  title="Prototype"
-                  description="Build and test an initial computer-vision model."
-                  completed={idea.stage !== 'Research'}
-                />
-
-                <RoadmapStep
-                  number="03"
-                  title="MVP"
-                  description="Develop a usable application for real-world users."
-                  completed={idea.stage === 'MVP'}
-                />
-
-                <RoadmapStep
-                  number="04"
-                  title="Scale"
-                  description="Expand crop coverage, improve accuracy, and grow adoption."
-                  completed={false}
-                />
-              </div>
-            </section>
-
-            {/* Research */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-                Research
-              </p>
-
-              <h2 className="mt-3 text-2xl font-bold text-slate-950">
-                Research connected to this idea
-              </h2>
-
-              <p className="mt-4 leading-7 text-slate-600">
-                Research papers, publications, patents, datasets and evidence
-                connected to this idea will appear here.
-              </p>
-
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                <InfoCard
-                  value={idea.researchers}
-                  label="Researchers connected"
-                />
-
-                <InfoCard
-                  value="12"
-                  label="Relevant research papers"
-                />
               </div>
 
-              <button
-                type="button"
-                className="mt-6 rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
-              >
-                Explore research
-              </button>
-            </section>
-          </div>
+              <h1 className="mt-5 break-words text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+                {idea.title ||
+                  'Untitled idea'}
+              </h1>
 
-          {/* Right column */}
-          <aside className="space-y-6">
-            {/* Funding */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-medium text-slate-500">
-                Funding needed
+              <p className="mt-5 max-w-3xl whitespace-pre-wrap text-lg leading-8 text-slate-600">
+                {idea.description ||
+                  'No description provided.'}
+              </p>
+
+            </div>
+
+            <div className="shrink-0 rounded-2xl bg-slate-50 p-5">
+
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Build progress
               </p>
 
               <p className="mt-2 text-3xl font-bold text-slate-950">
-                {idea.funding}
+                {progress}%
               </p>
 
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                Funding requirements will eventually be connected to the
-                project&apos;s current stage, milestones, and verified funding
-                information.
+              <p className="mt-1 text-sm text-slate-500">
+                Step {idea.currentStep} of 5
               </p>
 
-              <button
-                type="button"
-                className="mt-6 w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                I&apos;m interested
-              </button>
-            </section>
+            </div>
 
-            {/* Community */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-bold text-slate-950">
-                Community
-              </h2>
+          </div>
 
-              <p className="mt-4 text-sm leading-6 text-slate-600">
-                {idea.contributors} contributors are currently connected with
-                this idea.
-              </p>
+          <div className="mt-8 grid gap-6 border-t border-slate-200 pt-6 sm:grid-cols-3">
 
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <InfoCard
-                  value={idea.contributors}
-                  label="Contributors"
-                />
+            <InfoBlock
+              label="Created"
+              value={formatDate(
+                idea.createdAt,
+              )}
+            />
 
-                <InfoCard
-                  value={idea.researchers}
-                  label="Researchers"
-                />
-              </div>
+            <InfoBlock
+              label="Last updated"
+              value={formatDate(
+                idea.updatedAt,
+              )}
+            />
 
-              <button
-                type="button"
-                className="mt-6 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
-              >
-                Join the project
-              </button>
-            </section>
+            <InfoBlock
+              label="Current stage"
+              value={idea.stage}
+            />
 
-            {/* Team requirements */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
-                Team
-              </p>
+          </div>
 
-              <h2 className="mt-3 text-xl font-bold text-slate-950">
-                People needed
-              </h2>
-
-              <div className="mt-5 space-y-3">
-                <TeamRole role="ML Engineer" />
-                <TeamRole role="Agriculture Expert" />
-                <TeamRole role="Product Designer" />
-              </div>
-
-              <button
-                type="button"
-                className="mt-6 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
-              >
-                View team needs
-              </button>
-            </section>
-
-            {/* Actions */}
-            <section className="rounded-2xl bg-slate-950 p-6 text-white">
-              <h2 className="text-xl font-bold">
-                Want to help build this?
-              </h2>
-
-              <p className="mt-3 text-sm leading-6 text-slate-300">
-                Connect with the team, offer your skills, or start a
-                conversation about the idea.
-              </p>
-
-              <button
-                type="button"
-                className="mt-6 w-full rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
-              >
-                Connect with team
-              </button>
-            </section>
-          </aside>
         </div>
-      </section>
-    </PageContainer>
-  );
-}
 
-type ScoreCardProps = {
-  label: string;
-  value: number;
-};
+        {/* Problem */}
 
-function ScoreCard({ label, value }: ScoreCardProps) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-end justify-between gap-4">
-        <p className="text-3xl font-bold text-slate-950">
-          {value}
-        </p>
+        <div className="mt-8">
+          <DetailCard
+            eyebrow="Problem"
+            title="What problem are you solving?"
+          >
+            <div className="grid gap-8 lg:grid-cols-2">
 
-        <p className="text-sm font-medium text-slate-500">
-          {label}
-        </p>
-      </div>
+              <InfoBlock
+                label="Problem statement"
+                value={
+                  idea.problemStatement
+                }
+              />
 
-      <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-          style={{ width: `${value}%` }}
-        />
-      </div>
-    </div>
-  );
-}
+              <InfoBlock
+                label="Target users"
+                value={
+                  idea.targetUsers
+                }
+              />
 
-type InfoCardProps = {
-  value: string | number;
-  label: string;
-};
+              <InfoBlock
+                label="Current solution"
+                value={
+                  idea.currentSolution
+                }
+              />
 
-function InfoCard({ value, label }: InfoCardProps) {
-  return (
-    <div className="rounded-xl bg-slate-50 p-4">
-      <p className="text-2xl font-bold text-slate-950">
-        {value}
-      </p>
+              <InfoBlock
+                label="Problem evidence"
+                value={
+                  idea.problemEvidence
+                }
+              />
 
-      <p className="mt-1 text-xs font-medium leading-5 text-slate-500">
-        {label}
-      </p>
-    </div>
-  );
-}
+            </div>
+          </DetailCard>
+        </div>
 
-type RoadmapStepProps = {
-  number: string;
-  title: string;
-  description: string;
-  completed: boolean;
-};
+        {/* Solution */}
 
-function RoadmapStep({
-  number,
-  title,
-  description,
-  completed,
-}: RoadmapStepProps) {
-  return (
-    <div className="flex gap-4">
-      <div
-        className={[
-          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold',
-          completed
-            ? 'bg-emerald-100 text-emerald-700'
-            : 'bg-slate-100 text-slate-500',
-        ].join(' ')}
-      >
-        {number}
-      </div>
+        <div className="mt-8">
+          <DetailCard
+            eyebrow="Solution"
+            title="How the idea solves the problem"
+          >
+            <div className="grid gap-8">
 
-      <div>
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-slate-950">
-            {title}
-          </h3>
+              <InfoBlock
+                label="Solution description"
+                value={
+                  idea.solutionDescription
+                }
+              />
 
-          {completed && (
-            <span className="text-xs font-medium text-emerald-600">
-              Completed
-            </span>
+              <InfoBlock
+                label="How it works"
+                value={
+                  idea.howItWorks
+                }
+              />
+
+              <InfoBlock
+                label="Unique value"
+                value={
+                  idea.uniqueValue
+                }
+              />
+
+            </div>
+          </DetailCard>
+        </div>
+
+        {/* Technology */}
+
+        <div className="mt-8">
+          <DetailCard
+            eyebrow="Technology"
+            title="Technology and implementation"
+          >
+            <div className="grid gap-8 lg:grid-cols-2">
+
+              <InfoBlock
+                label="Technology approach"
+                value={
+                  idea.technologyApproach
+                }
+              />
+
+              <InfoBlock
+                label="Technology domain"
+                value={
+                  idea.technologyDomain
+                }
+              />
+
+              <InfoBlock
+                label="Technology readiness"
+                value={
+                  idea.technologyReadiness
+                }
+              />
+
+              <InfoBlock
+                label="Required technology"
+                value={
+                  idea.requiredTechnology
+                }
+              />
+
+              <InfoBlock
+                label="Existing implementation"
+                value={
+                  idea.existingImplementation
+                }
+              />
+
+            </div>
+          </DetailCard>
+        </div>
+
+        {/* Validation */}
+
+        <div className="mt-8">
+          <DetailCard
+            eyebrow="Validation"
+            title="Evidence and validation"
+          >
+            <div className="grid gap-8 lg:grid-cols-2">
+
+              <InfoBlock
+                label="Validation method"
+                value={
+                  idea.validationMethod
+                }
+              />
+
+              <InfoBlock
+                label="Validation audience"
+                value={
+                  idea.validationAudience
+                }
+              />
+
+              <InfoBlock
+                label="Sample size"
+                value={
+                  idea.validationSampleSize
+                }
+              />
+
+              <InfoBlock
+                label="Validation findings"
+                value={
+                  idea.validationFindings
+                }
+              />
+
+              <div className="lg:col-span-2">
+                <InfoBlock
+                  label="Validation evidence"
+                  value={
+                    idea.validationEvidence
+                  }
+                />
+              </div>
+
+            </div>
+          </DetailCard>
+        </div>
+
+        {/* Research */}
+
+        <div className="mt-8">
+          <DetailCard
+            eyebrow="Research"
+            title="Research evidence"
+          >
+            {idea.research.length ===
+            0 ? (
+              <div className="rounded-xl bg-slate-50 p-5">
+
+                <p className="text-sm text-slate-500">
+                  No research items have been added
+                  yet.
+                </p>
+
+              </div>
+            ) : (
+              <div className="space-y-5">
+
+                {idea.research.map(
+                  (item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-2xl border border-slate-200 p-5"
+                    >
+
+                      <div className="flex flex-wrap items-center gap-2">
+
+                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                          {item.type}
+                        </span>
+
+                        {item.year !==
+                          null && (
+                          <span className="text-xs font-medium text-slate-400">
+                            {item.year}
+                          </span>
+                        )}
+
+                      </div>
+
+                      <h3 className="mt-3 text-lg font-bold text-slate-950">
+                        {item.title}
+                      </h3>
+
+                      {item.source && (
+                        <p className="mt-2 text-sm text-slate-500">
+                          Source: {item.source}
+                        </p>
+                      )}
+
+                      {item.url && (
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-3 inline-block break-all text-sm font-semibold text-emerald-700 hover:text-emerald-800"
+                        >
+                          {item.url}
+                        </a>
+                      )}
+
+                      <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-600">
+                        {item.relevance ||
+                          'No relevance notes provided.'}
+                      </p>
+
+                    </div>
+                  ),
+                )}
+
+              </div>
+            )}
+          </DetailCard>
+        </div>
+
+        {/* Collaboration */}
+
+        <div className="mt-8">
+          <DetailCard
+            eyebrow="Collaboration"
+            title="People and collaboration needs"
+          >
+            {idea.collaborationNeeds.length ===
+            0 ? (
+              <div className="rounded-xl bg-slate-50 p-5">
+
+                <p className="text-sm text-slate-500">
+                  No collaboration needs have been
+                  added yet.
+                </p>
+
+              </div>
+            ) : (
+              <div className="grid gap-5 lg:grid-cols-2">
+
+                {idea.collaborationNeeds.map(
+                  (need) => (
+                    <div
+                      key={need.id}
+                      className="rounded-2xl border border-slate-200 p-5"
+                    >
+
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+
+                        <h3 className="text-lg font-bold text-slate-950">
+                          {need.role}
+                        </h3>
+
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                          {need.collaborationType}
+                        </span>
+
+                      </div>
+
+                      <div className="mt-5 space-y-4">
+
+                        <InfoBlock
+                          label="Responsibilities"
+                          value={
+                            need.responsibilities
+                          }
+                        />
+
+                        <InfoBlock
+                          label="Skills"
+                          value={
+                            need.skills
+                          }
+                        />
+
+                        <InfoBlock
+                          label="Openings"
+                          value={
+                            need.openings
+                          }
+                        />
+
+                      </div>
+
+                    </div>
+                  ),
+                )}
+
+              </div>
+            )}
+          </DetailCard>
+        </div>
+
+        {/* Funding */}
+
+        <div className="mt-8">
+          <DetailCard
+            eyebrow="Funding"
+            title="Funding and resources"
+          >
+            <div className="grid gap-8 lg:grid-cols-2">
+
+              <InfoBlock
+                label="Needs funding"
+                value={
+                  idea.funding.needsFunding
+                }
+              />
+
+              <InfoBlock
+                label="Amount"
+                value={
+                  idea.funding.amount
+                }
+              />
+
+              <InfoBlock
+                label="Funding type"
+                value={
+                  idea.funding.type
+                }
+              />
+
+              <InfoBlock
+                label="Purpose"
+                value={
+                  idea.funding.purpose
+                }
+              />
+
+            </div>
+
+            <div className="mt-8">
+
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Resource needs
+              </p>
+
+              {idea.funding.resources.length ===
+              0 ? (
+                <div className="mt-3 rounded-xl bg-slate-50 p-5">
+
+                  <p className="text-sm text-slate-500">
+                    No additional resources listed.
+                  </p>
+
+                </div>
+              ) : (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+
+                  {idea.funding.resources.map(
+                    (resource) => (
+                      <div
+                        key={
+                          resource.id
+                        }
+                        className="rounded-2xl border border-slate-200 p-5"
+                      >
+
+                        <p className="text-sm font-bold text-slate-950">
+                          {resource.type}
+                        </p>
+
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">
+                          {
+                            resource.description
+                          }
+                        </p>
+
+                      </div>
+                    ),
+                  )}
+
+                </div>
+              )}
+
+            </div>
+
+          </DetailCard>
+        </div>
+
+        {/* Bottom actions */}
+
+        <div className="mt-10 flex flex-wrap gap-3">
+
+          <Link
+            to="/my-ideas"
+            className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-50"
+          >
+            Back to My Ideas
+          </Link>
+
+          {idea.status !==
+            'ARCHIVED' && (
+            <Link
+              to={`/build?ideaId=${encodeURIComponent(
+                idea.id,
+              )}`}
+              className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              Edit idea →
+            </Link>
           )}
+
         </div>
 
-        <p className="mt-1 text-sm leading-6 text-slate-500">
-          {description}
-        </p>
       </div>
-    </div>
-  );
-}
-
-type TeamRoleProps = {
-  role: string;
-};
-
-function TeamRole({ role }: TeamRoleProps) {
-  return (
-    <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
-      <span className="text-sm font-medium text-slate-700">
-        {role}
-      </span>
-
-      <span className="text-xs font-semibold text-emerald-600">
-        Needed
-      </span>
-    </div>
+    </PageContainer>
   );
 }

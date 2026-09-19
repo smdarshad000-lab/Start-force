@@ -246,7 +246,8 @@ type DraftResponse = {
   ownerId: string;
   status:
     | 'DRAFT'
-    | 'PUBLISHED';
+    | 'PUBLISHED'
+    | 'ARCHIVED';
 
   currentStep: number;
 

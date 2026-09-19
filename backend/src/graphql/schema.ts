@@ -218,6 +218,7 @@ export const typeDefs = `
   enum IdeaStatus {
     DRAFT
     PUBLISHED
+    ARCHIVED
   }
 
   enum Visibility {
@@ -410,6 +411,7 @@ export const typeDefs = `
     currentUser: User
     myDraft: Idea
     myIdeas: [Idea!]!
+    archivedIdeas: [Idea!]!
     users: [User!]!
     ideas: [Idea!]!
     idea(id: ID!): Idea
@@ -420,6 +422,8 @@ export const typeDefs = `
     login(input: LoginInput!): AuthPayload!
     logout: Boolean!
     saveDraft(input: SaveDraftInput!): Idea!
+    archiveIdea(id: ID!): Boolean!
+    restoreIdea(id: ID!): Boolean!
   }
 `;
 
@@ -598,6 +602,73 @@ export const resolvers = {
 
             FROM ideas
             WHERE owner_id = $1
+            ORDER BY updated_at DESC
+          `,
+          [currentUser.id],
+        );
+
+      return result.rows;
+    },
+
+    archivedIdeas: async (
+      _parent: unknown,
+      _args: unknown,
+      context: GraphQLContext,
+    ) => {
+      const currentUser =
+        await getCurrentUser(
+          context.pool,
+          context.sessionToken,
+        );
+
+      if (!currentUser) {
+        return [];
+      }
+
+      const result =
+        await context.pool.query(
+          `
+            SELECT
+              id,
+              owner_id AS "ownerId",
+              status,
+              current_step AS "currentStep",
+
+              title,
+              description,
+              category,
+              stage,
+
+              problem_statement AS "problemStatement",
+              target_users AS "targetUsers",
+              current_solution AS "currentSolution",
+              problem_evidence AS "problemEvidence",
+
+              solution_description AS "solutionDescription",
+              how_it_works AS "howItWorks",
+              unique_value AS "uniqueValue",
+
+              technology_approach AS "technologyApproach",
+              technology_domain AS "technologyDomain",
+              technology_readiness AS "technologyReadiness",
+              required_technology AS "requiredTechnology",
+              existing_implementation AS "existingImplementation",
+
+              validation_method AS "validationMethod",
+              validation_audience AS "validationAudience",
+              validation_sample_size AS "validationSampleSize",
+              validation_findings AS "validationFindings",
+              validation_evidence AS "validationEvidence",
+
+              collaboration_needs AS "collaborationNeeds",
+              funding,
+
+              created_at AS "createdAt",
+              updated_at AS "updatedAt"
+
+            FROM ideas
+            WHERE owner_id = $1
+              AND status = 'ARCHIVED'
             ORDER BY updated_at DESC
           `,
           [currentUser.id],
@@ -809,6 +880,86 @@ export const resolvers = {
       return true;
     },
 
+    archiveIdea: async (
+      _parent: unknown,
+      args: { id: string },
+      context: GraphQLContext,
+    ) => {
+      const currentUser =
+        await getCurrentUser(
+          context.pool,
+          context.sessionToken,
+        );
+
+      if (!currentUser) {
+        throw new Error(
+          'You must be signed in to archive an idea.',
+        );
+      }
+
+      const result =
+        await context.pool.query(
+          `
+            UPDATE ideas
+            SET
+              status = 'ARCHIVED',
+              updated_at = NOW()
+            WHERE id = $1
+              AND owner_id = $2
+              AND status <> 'ARCHIVED'
+          `,
+          [args.id, currentUser.id],
+        );
+
+      if (!result.rowCount) {
+        throw new Error(
+          'Idea not found or it has already been archived.',
+        );
+      }
+
+      return true;
+    },
+
+    restoreIdea: async (
+      _parent: unknown,
+      args: { id: string },
+      context: GraphQLContext,
+    ) => {
+      const currentUser =
+        await getCurrentUser(
+          context.pool,
+          context.sessionToken,
+        );
+
+      if (!currentUser) {
+        throw new Error(
+          'You must be signed in to restore an idea.',
+        );
+      }
+
+      const result =
+        await context.pool.query(
+          `
+            UPDATE ideas
+            SET
+              status = 'DRAFT',
+              updated_at = NOW()
+            WHERE id = $1
+              AND owner_id = $2
+              AND status = 'ARCHIVED'
+          `,
+          [args.id, currentUser.id],
+        );
+
+      if (!result.rowCount) {
+        throw new Error(
+          'Archived idea not found or it is already active.',
+        );
+      }
+
+      return true;
+    },
+
     saveDraft: async (
       _parent: unknown,
       args: {
@@ -874,6 +1025,27 @@ export const resolvers = {
           if (!ownership.rows[0]?.id) {
             throw new Error(
               'This idea does not exist or does not belong to your account.',
+            );
+          }
+
+          const archivedCheck =
+            await client.query(
+              `
+                SELECT status
+                FROM ideas
+                WHERE id = $1
+                  AND owner_id = $2
+                LIMIT 1
+              `,
+              [input.ideaId, currentUser.id],
+            );
+
+          if (
+            archivedCheck.rows[0]?.status ===
+            'ARCHIVED'
+          ) {
+            throw new Error(
+              'This idea is archived and cannot be edited.',
             );
           }
 
