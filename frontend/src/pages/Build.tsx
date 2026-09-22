@@ -2633,6 +2633,13 @@ export function Build() {
                 saveStatus ===
                   'saving'
               }
+              publishing={
+                publishing
+              }
+              published={
+                saveSuccess ===
+                'Your idea has been published successfully.'
+              }
               onSaveDraft={() => {
                 void handleSaveDraft();
               }}
