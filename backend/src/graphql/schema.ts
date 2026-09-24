@@ -61,6 +61,7 @@ type FundingInput = {
 
 type SaveDraftInput = {
   ideaId?: string | null;
+  visibility: 'Public' | 'Limited' | 'Private';
   title: string;
   description: string;
   category: string;
@@ -162,6 +163,7 @@ async function getIdeaById(
         id,
         owner_id AS "ownerId",
         status,
+        visibility,
         current_step AS "currentStep",
 
         title,
@@ -288,6 +290,7 @@ export const typeDefs = `
     id: ID!
     ownerId: ID!
     status: IdeaStatus!
+    visibility: Visibility!
     currentStep: Int!
 
     title: String!
@@ -369,6 +372,7 @@ export const typeDefs = `
 
   input SaveDraftInput {
     ideaId: ID
+    visibility: Visibility!
 
     title: String!
     description: String!
@@ -496,6 +500,7 @@ export const resolvers = {
               id,
               owner_id AS "ownerId",
               status,
+              visibility,
               current_step AS "currentStep",
 
               title,
@@ -567,6 +572,7 @@ export const resolvers = {
               id,
               owner_id AS "ownerId",
               status,
+              visibility,
               current_step AS "currentStep",
 
               title,
@@ -633,6 +639,7 @@ export const resolvers = {
               id,
               owner_id AS "ownerId",
               status,
+              visibility,
               current_step AS "currentStep",
 
               title,
@@ -712,6 +719,7 @@ export const resolvers = {
               id,
               owner_id AS "ownerId",
               status,
+              visibility,
               current_step AS "currentStep",
 
               title,
@@ -767,6 +775,7 @@ export const resolvers = {
               id,
               owner_id AS "ownerId",
               status,
+              visibility,
               current_step AS "currentStep",
 
               title,
@@ -1099,43 +1108,45 @@ export const resolvers = {
               `
                 UPDATE ideas
                 SET
-                  current_step = $1,
+                  visibility = $1,
+                  current_step = $2,
 
-                  title = $2,
-                  description = $3,
-                  category = $4,
-                  stage = $5,
+                  title = $3,
+                  description = $4,
+                  category = $5,
+                  stage = $6,
 
-                  problem_statement = $6,
-                  target_users = $7,
-                  current_solution = $8,
-                  problem_evidence = $9,
+                  problem_statement = $7,
+                  target_users = $8,
+                  current_solution = $9,
+                  problem_evidence = $10,
 
-                  solution_description = $10,
-                  how_it_works = $11,
-                  unique_value = $12,
+                  solution_description = $11,
+                  how_it_works = $12,
+                  unique_value = $13,
 
-                  technology_approach = $13,
-                  technology_domain = $14,
-                  technology_readiness = $15,
-                  required_technology = $16,
-                  existing_implementation = $17,
+                  technology_approach = $14,
+                  technology_domain = $15,
+                  technology_readiness = $16,
+                  required_technology = $17,
+                  existing_implementation = $18,
 
-                  validation_method = $18,
-                  validation_audience = $19,
-                  validation_sample_size = $20,
-                  validation_findings = $21,
-                  validation_evidence = $22,
+                  validation_method = $19,
+                  validation_audience = $20,
+                  validation_sample_size = $21,
+                  validation_findings = $22,
+                  validation_evidence = $23,
 
-                  collaboration_needs = $23,
-                  funding = $24,
+                  collaboration_needs = $24,
+                  funding = $25,
 
                   updated_at = NOW()
 
-                WHERE id = $25
-                  AND owner_id = $26
+                WHERE id = $26
+                  AND owner_id = $27
               `,
               [
+                input.visibility,
                 currentStep,
 
                 input.title.trim(),
@@ -1184,6 +1195,7 @@ export const resolvers = {
                 INSERT INTO ideas (
                   owner_id,
                   status,
+                  visibility,
                   current_step,
 
                   title,
@@ -1220,41 +1232,43 @@ export const resolvers = {
                   $1,
                   'DRAFT',
                   $2,
-
                   $3,
+
                   $4,
                   $5,
                   $6,
-
                   $7,
+
                   $8,
                   $9,
                   $10,
-
                   $11,
+
                   $12,
                   $13,
-
                   $14,
+
                   $15,
                   $16,
                   $17,
                   $18,
-
                   $19,
+
                   $20,
                   $21,
                   $22,
                   $23,
-
                   $24,
-                  $25
+
+                  $25,
+                  $26
                 )
 
                 RETURNING id
               `,
               [
                 currentUser.id,
+                input.visibility,
                 currentStep,
 
                 input.title.trim(),

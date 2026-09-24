@@ -12,8 +12,10 @@ type ReviewStageProps = {
   onSaveDraft: () => void;
   onPublish: (
     visibility: Visibility,
-  ) => void;
+  ) => void | Promise<void>;
   saving?: boolean;
+  publishing?: boolean;
+  published?: boolean;
 };
 
 export function ReviewStage({
@@ -21,6 +23,8 @@ export function ReviewStage({
   onSaveDraft,
   onPublish,
   saving = false,
+  publishing = false,
+  published = false,
 }: ReviewStageProps) {
   const [
     visibility,
@@ -97,8 +101,7 @@ export function ReviewStage({
 
         {
           label: 'Research',
-          complete:
-            draft.research.length > 0,
+          complete:true,
         },
 
         {
@@ -142,7 +145,9 @@ export function ReviewStage({
   function handlePublish() {
     if (
       !canPublish ||
-      saving
+      saving ||
+      publishing ||
+      published
     ) {
       return;
     }
@@ -747,16 +752,34 @@ export function ReviewStage({
               onClick={handlePublish}
               disabled={
                 !canPublish ||
-                saving
+                saving ||
+                publishing ||
+                published
               }
               className={[
-                'rounded-xl px-6 py-3.5 text-sm font-semibold transition',
-                canPublish && !saving
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                  : 'cursor-not-allowed bg-slate-100 text-slate-400',
+                'inline-flex min-w-[155px] items-center justify-center gap-2 rounded-xl px-6 py-3.5 text-sm font-semibold transition',
+                published
+                  ? 'bg-emerald-600 text-white'
+                  : publishing
+                    ? 'cursor-wait bg-emerald-600 text-white'
+                    : canPublish && !saving
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      : 'cursor-not-allowed bg-slate-100 text-slate-400',
               ].join(' ')}
             >
-              Publish idea
+              {published ? (
+                <>
+                  <span>✓</span>
+                  Published
+                </>
+              ) : publishing ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  Publishing...
+                </>
+              ) : (
+                'Publish idea'
+              )}
             </button>
           </div>
         </div>

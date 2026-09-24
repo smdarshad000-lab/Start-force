@@ -574,6 +574,11 @@ export function Build() {
   ] = useState('');
 
   const [
+    saveSuccess,
+    setSaveSuccess,
+  ] = useState('');
+
+  const [
     savedIdeaId,
     setSavedIdeaId,
   ] = useState<
