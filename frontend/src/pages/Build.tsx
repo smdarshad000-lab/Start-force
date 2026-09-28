@@ -187,8 +187,14 @@ const SAVE_DRAFT_MUTATION = gql`
 `;
 
 const PUBLISH_IDEA_MUTATION = gql`
-  mutation PublishIdea($id: ID!) {
-    publishIdea(id: $id)
+  mutation PublishIdea(
+    $id: ID!
+    $visibility: Visibility!
+  ) {
+    publishIdea(
+      id: $id
+      visibility: $visibility
+    )
   }
 `;
 
@@ -1381,7 +1387,7 @@ export function Build() {
      ======================================================= */
 
   async function handlePublish(
-    _visibility:
+    visibility:
       | 'Public'
       | 'Limited'
       | 'Private',
@@ -1417,6 +1423,7 @@ export function Build() {
       await publishIdea({
         variables: {
           id: ideaId,
+          visibility,
         },
       });
 

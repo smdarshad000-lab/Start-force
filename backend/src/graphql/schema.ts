@@ -61,7 +61,7 @@ type FundingInput = {
 
 type SaveDraftInput = {
   ideaId?: string | null;
-  visibility: 'Public' | 'Limited' | 'Private';
+  visibility?: 'Public' | 'Limited' | 'Private';
   title: string;
   description: string;
   category: string;
@@ -372,7 +372,7 @@ export const typeDefs = `
 
   input SaveDraftInput {
     ideaId: ID
-    visibility: Visibility!
+    visibility: Visibility
 
     title: String!
     description: String!
@@ -428,7 +428,7 @@ export const typeDefs = `
     saveDraft(input: SaveDraftInput!): Idea!
     archiveIdea(id: ID!): Boolean!
     restoreIdea(id: ID!): Boolean!
-    publishIdea(id: ID!): Boolean!
+    publishIdea(id: ID!, visibility: Visibility!): Boolean!
   }
 `;
 
@@ -756,6 +756,9 @@ export const resolvers = {
 
             FROM ideas
 
+            WHERE status = 'PUBLISHED'
+              AND visibility = 'Public'
+
             ORDER BY created_at DESC
           `,
         );
@@ -768,6 +771,20 @@ export const resolvers = {
       args: { id: string },
       context: GraphQLContext,
     ) => {
+      const currentUser =
+        await getCurrentUser(
+          context.pool,
+          context.sessionToken,
+        );
+
+      const params: unknown[] = [args.id];
+      let ownerCondition = '';
+
+      if (currentUser) {
+        ownerCondition = ' OR owner_id = $2';
+        params.push(currentUser.id);
+      }
+
       const result =
         await context.pool.query(
           `
@@ -813,10 +830,13 @@ export const resolvers = {
             FROM ideas
 
             WHERE id = $1
+              AND (
+                (status = 'PUBLISHED' AND visibility = 'Public')${ownerCondition}
+              )
 
             LIMIT 1
           `,
-          [args.id],
+          params,
         );
 
       return result.rows[0] ?? null;
@@ -972,7 +992,10 @@ export const resolvers = {
 
     publishIdea: async (
       _parent: unknown,
-      args: { id: string },
+      args: {
+        id: string;
+        visibility: 'Public' | 'Limited' | 'Private';
+      },
       context: GraphQLContext,
     ) => {
       const currentUser =
@@ -993,12 +1016,13 @@ export const resolvers = {
             UPDATE ideas
             SET
               status = 'PUBLISHED',
+              visibility = $2,
               updated_at = NOW()
             WHERE id = $1
-              AND owner_id = $2
+              AND owner_id = $3
               AND status <> 'ARCHIVED'
           `,
-          [args.id, currentUser.id],
+          [args.id, args.visibility, currentUser.id],
         );
 
       if (!result.rowCount) {
@@ -1030,6 +1054,9 @@ export const resolvers = {
       }
 
       const input = args.input;
+
+      const visibility =
+        input.visibility ?? 'Private';
 
       const currentStep =
         validateStep(
@@ -1146,7 +1173,7 @@ export const resolvers = {
                   AND owner_id = $27
               `,
               [
-                input.visibility,
+                visibility,
                 currentStep,
 
                 input.title.trim(),
@@ -1268,7 +1295,7 @@ export const resolvers = {
               `,
               [
                 currentUser.id,
-                input.visibility,
+                visibility,
                 currentStep,
 
                 input.title.trim(),
