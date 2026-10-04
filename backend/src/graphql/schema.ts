@@ -409,6 +409,21 @@ export const typeDefs = `
     currentStep: Int!
   }
 
+  enum IdeaAccessStatus {
+    PENDING
+    APPROVED
+    REJECTED
+  }
+
+  type IdeaAccess {
+    id: ID!
+    ideaId: ID!
+    userId: ID!
+    status: IdeaAccessStatus!
+    createdAt: String!
+    updatedAt: String!
+  }
+
   type Query {
     health: HealthStatus!
     databaseStatus: DatabaseStatus!
@@ -419,6 +434,8 @@ export const typeDefs = `
     users: [User!]!
     ideas: [Idea!]!
     idea(id: ID!): Idea
+    myIdeaAccessRequests(ideaId: ID): [IdeaAccess!]!
+    myIdeaAccessStatus(ideaId: ID!): IdeaAccess
   }
 
   type Mutation {
@@ -429,6 +446,9 @@ export const typeDefs = `
     archiveIdea(id: ID!): Boolean!
     restoreIdea(id: ID!): Boolean!
     publishIdea(id: ID!, visibility: Visibility!): Boolean!
+    requestIdeaAccess(ideaId: ID!): IdeaAccess!
+    approveIdeaAccess(accessId: ID!): Boolean!
+    rejectIdeaAccess(accessId: ID!): Boolean!
   }
 `;
 
@@ -756,9 +776,6 @@ export const resolvers = {
 
             FROM ideas
 
-            WHERE status = 'PUBLISHED'
-              AND visibility = 'Public'
-
             ORDER BY created_at DESC
           `,
         );
@@ -776,14 +793,6 @@ export const resolvers = {
           context.pool,
           context.sessionToken,
         );
-
-      const params: unknown[] = [args.id];
-      let ownerCondition = '';
-
-      if (currentUser) {
-        ownerCondition = ' OR owner_id = $2';
-        params.push(currentUser.id);
-      }
 
       const result =
         await context.pool.query(
@@ -831,12 +840,100 @@ export const resolvers = {
 
             WHERE id = $1
               AND (
-                (status = 'PUBLISHED' AND visibility = 'Public')${ownerCondition}
+                (status = 'PUBLISHED' AND visibility = 'Public')
+                OR owner_id = $2
+                OR (
+                  status = 'PUBLISHED'
+                  AND visibility = 'Limited'
+                  AND EXISTS (
+                    SELECT 1
+                    FROM idea_access AS ia
+                    WHERE ia.idea_id = ideas.id
+                      AND ia.user_id = $2
+                      AND ia.status = 'APPROVED'
+                  )
+                )
               )
 
             LIMIT 1
           `,
-          params,
+          [args.id, currentUser?.id ?? null],
+        );
+
+      return result.rows[0] ?? null;
+    },
+
+    myIdeaAccessRequests: async (
+      _parent: unknown,
+      args: { ideaId?: string | null },
+      context: GraphQLContext,
+    ) => {
+      const currentUser =
+        await getCurrentUser(
+          context.pool,
+          context.sessionToken,
+        );
+
+      if (!currentUser) {
+        return [];
+      }
+
+      const result =
+        await context.pool.query(
+          `
+            SELECT
+              ia.id,
+              ia.idea_id AS "ideaId",
+              ia.user_id AS "userId",
+              ia.status,
+              ia.created_at AS "createdAt",
+              ia.updated_at AS "updatedAt"
+            FROM idea_access AS ia
+            JOIN ideas AS i
+              ON i.id = ia.idea_id
+            WHERE i.owner_id = $1
+              AND i.visibility = 'Limited'
+              AND i.status = 'PUBLISHED'
+              AND ($2::uuid IS NULL OR ia.idea_id = $2)
+            ORDER BY ia.created_at DESC
+          `,
+          [currentUser.id, args.ideaId ?? null],
+        );
+
+      return result.rows;
+    },
+
+    myIdeaAccessStatus: async (
+      _parent: unknown,
+      args: { ideaId: string },
+      context: GraphQLContext,
+    ) => {
+      const currentUser =
+        await getCurrentUser(
+          context.pool,
+          context.sessionToken,
+        );
+
+      if (!currentUser) {
+        return null;
+      }
+
+      const result =
+        await context.pool.query(
+          `
+            SELECT
+              ia.id,
+              ia.idea_id AS "ideaId",
+              ia.user_id AS "userId",
+              ia.status,
+              ia.created_at AS "createdAt",
+              ia.updated_at AS "updatedAt"
+            FROM idea_access AS ia
+            WHERE ia.idea_id = $1
+              AND ia.user_id = $2
+            LIMIT 1
+          `,
+          [args.ideaId, currentUser.id],
         );
 
       return result.rows[0] ?? null;
@@ -1028,6 +1125,183 @@ export const resolvers = {
       if (!result.rowCount) {
         throw new Error(
           'Idea not found or it cannot be published.',
+        );
+      }
+
+      return true;
+    },
+
+    requestIdeaAccess: async (
+      _parent: unknown,
+      args: { ideaId: string },
+      context: GraphQLContext,
+    ) => {
+      const currentUser =
+        await getCurrentUser(
+          context.pool,
+          context.sessionToken,
+        );
+
+      if (!currentUser) {
+        throw new Error(
+          'You must be signed in to request access.',
+        );
+      }
+
+      const ideaResult =
+        await context.pool.query(
+          `
+            SELECT id, owner_id AS "ownerId", status, visibility
+            FROM ideas
+            WHERE id = $1
+            LIMIT 1
+          `,
+          [args.ideaId],
+        );
+
+      const idea = ideaResult.rows[0];
+
+      if (!idea) {
+        throw new Error('Idea not found.');
+      }
+
+      if (idea.ownerId === currentUser.id) {
+        throw new Error('You already own this idea.');
+      }
+
+      if (idea.status !== 'PUBLISHED' || idea.visibility !== 'Limited') {
+        throw new Error(
+          'Access requests are only available for published Limited ideas.',
+        );
+      }
+
+      const existing =
+        await context.pool.query(
+          `
+            SELECT
+              id,
+              idea_id AS "ideaId",
+              user_id AS "userId",
+              status,
+              created_at AS "createdAt",
+              updated_at AS "updatedAt"
+            FROM idea_access
+            WHERE idea_id = $1
+              AND user_id = $2
+            LIMIT 1
+          `,
+          [args.ideaId, currentUser.id],
+        );
+
+      if (existing.rows[0]) {
+        return existing.rows[0];
+      }
+
+      const result =
+        await context.pool.query(
+          `
+            INSERT INTO idea_access (
+              idea_id,
+              user_id,
+              status
+            )
+            VALUES ($1, $2, 'PENDING')
+            RETURNING
+              id,
+              idea_id AS "ideaId",
+              user_id AS "userId",
+              status,
+              created_at AS "createdAt",
+              updated_at AS "updatedAt"
+          `,
+          [args.ideaId, currentUser.id],
+        );
+
+      return result.rows[0];
+    },
+
+    approveIdeaAccess: async (
+      _parent: unknown,
+      args: { accessId: string },
+      context: GraphQLContext,
+    ) => {
+      const currentUser =
+        await getCurrentUser(
+          context.pool,
+          context.sessionToken,
+        );
+
+      if (!currentUser) {
+        throw new Error(
+          'You must be signed in to approve access.',
+        );
+      }
+
+      const result =
+        await context.pool.query(
+          `
+            UPDATE idea_access AS ia
+            SET
+              status = 'APPROVED',
+              updated_at = NOW()
+            FROM ideas AS i
+            WHERE ia.id = $1
+              AND ia.idea_id = i.id
+              AND i.owner_id = $2
+              AND i.visibility = 'Limited'
+              AND i.status = 'PUBLISHED'
+              AND ia.status = 'PENDING'
+          `,
+          [args.accessId, currentUser.id],
+        );
+
+      if (!result.rowCount) {
+        throw new Error(
+          'Access request not found or cannot be approved.',
+        );
+      }
+
+      return true;
+    },
+
+    rejectIdeaAccess: async (
+      _parent: unknown,
+      args: { accessId: string },
+      context: GraphQLContext,
+    ) => {
+      const currentUser =
+        await getCurrentUser(
+          context.pool,
+          context.sessionToken,
+        );
+
+      if (!currentUser) {
+        throw new Error(
+          'You must be signed in to reject access.',
+        );
+      }
+
+      const result =
+        await context.pool.query(
+          `
+            UPDATE idea_access AS ia
+            SET
+              status = 'REJECTED',
+              updated_at = NOW()
+            FROM ideas AS i
+            WHERE ia.id = $1
+              AND ia.idea_id = i.id
+              AND i.owner_id = $2
+              AND i.visibility = 'Limited'
+              AND i.status = 'PUBLISHED'
+              AND ia.status = 'PENDING'
+          `,
+          [args.accessId, currentUser.id],
+        );
+
+      if (!result.rowCount) {
+        throw new Error(
+          'Access request not found or cannot be rejected.',
         );
       }
 
