@@ -1,4 +1,4 @@
-import type { pool } from '../database.js';
+﻿import type { pool } from '../database.js';
 
 import {
   getCurrentUser,
@@ -775,7 +775,8 @@ export const resolvers = {
               updated_at AS "updatedAt"
 
             FROM ideas
-
+            WHERE status = 'PUBLISHED'
+              AND visibility = 'Public'
             ORDER BY created_at DESC
           `,
         );
