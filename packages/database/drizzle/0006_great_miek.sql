@@ -1,0 +1,14 @@
+ALTER TABLE "ideas"
+ADD COLUMN IF NOT EXISTS "visibility"
+text DEFAULT 'Private' NOT NULL;
+--> statement-breakpoint
+CREATE INDEX "idea_access_user_status_idx" ON "idea_access" USING btree ("user_id","status");--> statement-breakpoint
+CREATE INDEX "ideas_owner_updated_idx" ON "ideas" USING btree ("owner_id","updated_at");--> statement-breakpoint
+CREATE INDEX "ideas_status_visibility_created_idx" ON "ideas" USING btree ("status","visibility","created_at");--> statement-breakpoint
+CREATE INDEX "research_items_idea_id_idx" ON "research_items" USING btree ("idea_id");--> statement-breakpoint
+CREATE INDEX "sessions_user_id_idx" ON "sessions" USING btree ("user_id");--> statement-breakpoint
+ALTER TABLE "idea_access" ADD CONSTRAINT "idea_access_status_valid" CHECK ("idea_access"."status" IN ('PENDING', 'APPROVED', 'REJECTED'));--> statement-breakpoint
+ALTER TABLE "ideas" ADD CONSTRAINT "ideas_status_valid" CHECK ("ideas"."status" IN ('DRAFT', 'PUBLISHED', 'ARCHIVED'));--> statement-breakpoint
+ALTER TABLE "ideas" ADD CONSTRAINT "ideas_visibility_valid" CHECK ("ideas"."visibility" IN ('Public', 'Private', 'Limited'));--> statement-breakpoint
+ALTER TABLE "ideas" ADD CONSTRAINT "ideas_stage_valid" CHECK ("ideas"."stage" IN ('Research', 'Prototype', 'MVP', 'Startup'));--> statement-breakpoint
+ALTER TABLE "ideas" ADD CONSTRAINT "ideas_current_step_valid" CHECK ("ideas"."current_step" BETWEEN 1 AND 5);

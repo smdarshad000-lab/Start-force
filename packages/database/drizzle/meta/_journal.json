@@ -36,6 +36,20 @@
       "when": 1790442211495,
       "tag": "0004_young_johnny_blaze",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792169518949,
+      "tag": "0005_watery_bastion",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792171504300,
+      "tag": "0006_great_miek",
+      "breakpoints": true
     }
   ]
 }
