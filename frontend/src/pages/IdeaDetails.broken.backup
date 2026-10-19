@@ -1,0 +1,96 @@
+import {
+  gql,
+  useQuery,
+} from '@apollo/client';
+
+import {
+  Link,
+  useParams,
+} from 'react-router-dom';
+
+import { PageContainer } from '../components/layout/PageContainer';
+
+const IDEA_QUERY = gql`
+  query IdeaDetails($id: ID!) {
+    idea(id: $id) {
+      id
+      ownerId
+      status
+      currentStep
+
+      title
+      description
+      category
+      stage
+
+      problemStatement
+      targetUsers
+      currentSolution
+      problemEvidence
+
+      solutionDescription
+      howItWorks
+      uniqueValue
+
+      technologyApproach
+      technologyDomain
+      technologyReadiness
+      requiredTechnology
+      existingImplementation
+
+      validationMethod
+      validationAudience
+      validationSampleSize
+      validationFindings
+      validationEvidence
+
+      research {
+        id
+        type
+        title
+        url
+        source
+        year
+        relevance
+      }
+
+      collaborationNeeds {
+        id
+        role
+        responsibilities
+        skills
+        openings
+        collaborationType
+      }
+
+      funding {
+        needsFunding
+        amount
+        type
+        purpose
+
+        resources {
+          id
+          type
+          description
+        }
+      }
+
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+type ResearchItem = {
+  id: string;
+  type: string;
+  title: string;
+  url: string | null;
+  source: string | null;
+  year: number | null;
+  relevance: string;
+};
+
+type CollaborationNeed = {
+  id: string;

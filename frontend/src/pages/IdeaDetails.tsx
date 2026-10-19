@@ -232,7 +232,7 @@ function InfoBlock({
         {label}
       </p>
 
-      <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-700">
+      <p className="mt-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-7 text-slate-700">
         {value || 'Not provided'}
       </p>
     </div>
@@ -249,7 +249,7 @@ function DetailCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">
         {eyebrow}
       </p>
@@ -402,7 +402,7 @@ export function IdeaDetails() {
             to="/my-ideas"
             className="inline-flex items-center text-sm font-semibold text-slate-500 transition hover:text-slate-950"
           >
-            ← Back to My Ideas
+            â† Back to My Ideas
           </Link>
 
           {idea.status !==
@@ -413,7 +413,7 @@ export function IdeaDetails() {
               )}`}
               className="inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
-              Continue building →
+              Continue building â†’
             </Link>
           )}
 
@@ -454,12 +454,12 @@ export function IdeaDetails() {
 
               </div>
 
-              <h1 className="mt-5 break-word text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-5 min-w-0 max-w-full break-words [overflow-wrap:anywhere] text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
                 {idea.title ||
                   'Untitled idea'}
               </h1>
 
-              <p className="mt-5 max-w-3xl whitespace-pre-wrap text-lg leading-8 text-slate-600">
+              <p className="mt-5 max-w-3xl whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-lg leading-8 text-slate-600">
                 {idea.description ||
                   'No description provided.'}
               </p>
@@ -516,7 +516,7 @@ export function IdeaDetails() {
             eyebrow="Problem"
             title="What problem are you solving?"
           >
-            <div className="grid gap-8 lg:grid-cols-2">
+            <div className="grid min-w-0 gap-8 lg:grid-cols-2">
 
               <InfoBlock
                 label="Problem statement"
@@ -557,7 +557,7 @@ export function IdeaDetails() {
             eyebrow="Solution"
             title="How the idea solves the problem"
           >
-            <div className="grid gap-8">
+            <div className="grid min-w-0 gap-8">
 
               <InfoBlock
                 label="Solution description"
@@ -591,7 +591,7 @@ export function IdeaDetails() {
             eyebrow="Technology"
             title="Technology and implementation"
           >
-            <div className="grid gap-8 lg:grid-cols-2">
+            <div className="grid min-w-0 gap-8 lg:grid-cols-2">
 
               <InfoBlock
                 label="Technology approach"
@@ -639,7 +639,7 @@ export function IdeaDetails() {
             eyebrow="Validation"
             title="Evidence and validation"
           >
-            <div className="grid gap-8 lg:grid-cols-2">
+            <div className="grid min-w-0 gap-8 lg:grid-cols-2">
 
               <InfoBlock
                 label="Validation method"
@@ -745,7 +745,7 @@ export function IdeaDetails() {
                         </a>
                       )}
 
-                      <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-600">
+                      <p className="mt-4 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-7 text-slate-600">
                         {item.relevance ||
                           'No relevance notes provided.'}
                       </p>
@@ -839,7 +839,7 @@ export function IdeaDetails() {
             eyebrow="Funding"
             title="Funding and resources"
           >
-            <div className="grid gap-8 lg:grid-cols-2">
+            <div className="grid min-w-0 gap-8 lg:grid-cols-2">
 
               <InfoBlock
                 label="Needs funding"
@@ -902,7 +902,7 @@ export function IdeaDetails() {
                           {resource.type}
                         </p>
 
-                        <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">
+                        <p className="mt-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-7 text-slate-600">
                           {
                             resource.description
                           }
@@ -939,7 +939,7 @@ export function IdeaDetails() {
               )}`}
               className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
-              Edit idea →
+              Edit idea â†’
             </Link>
           )}
 
